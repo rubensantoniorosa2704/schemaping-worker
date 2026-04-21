@@ -1,0 +1,13 @@
+# binary
+/schemaping
+
+# config with credentials (root only, examples/ is safe to commit)
+/config.yaml
+
+# snapshots
+.schemaping/
+
+# Go
+*.test
+*.out
+vendor/

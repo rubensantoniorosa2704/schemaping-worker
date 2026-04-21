@@ -1,0 +1,8 @@
+monitors:
+  - name: jsonplaceholder-post
+    url: https://jsonplaceholder.typicode.com/posts/1
+    interval: 1m
+
+  - name: httpbin-json
+    url: https://httpbin.org/json
+    interval: 5m
