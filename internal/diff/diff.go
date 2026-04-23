@@ -82,6 +82,52 @@ func compareValues(path string, before, after any) []types.DiffResult {
 		return diffObjects(bObj, aObj, path)
 	}
 
+	// recurse into arrays
+	if bArr, ok := before.([]any); ok {
+		aArr := after.([]any)
+		return diffArrays(path, bArr, aArr)
+	}
+
+	return nil
+}
+
+func diffArrays(path string, before, after []any) []types.DiffResult {
+	bEmpty, aEmpty := len(before) == 0, len(after) == 0
+
+	if bEmpty && aEmpty {
+		return nil
+	}
+
+	if bEmpty != aEmpty {
+		bDesc, aDesc := arrayDesc(before), arrayDesc(after)
+		return []types.DiffResult{{
+			Kind:   types.ChangeKindTypeChanged,
+			Path:   path,
+			Before: bDesc,
+			After:  aDesc,
+		}}
+	}
+
+	// both non-empty: compare element schemas using first element of each
+	bElem, aElem := before[0], after[0]
+	bName, aName := typeName(bElem), typeName(aElem)
+
+	// element type changed
+	if bName != aName {
+		return []types.DiffResult{{
+			Kind:   types.ChangeKindTypeChanged,
+			Path:   path + "[]",
+			Before: bName,
+			After:  aName,
+		}}
+	}
+
+	// both are arrays of objects: recurse into schema
+	if bObj, ok := bElem.(map[string]any); ok {
+		aObj := aElem.(map[string]any)
+		return diffObjects(bObj, aObj, path+"[]")
+	}
+
 	return nil
 }
 
@@ -103,6 +149,13 @@ func typeName(v any) string {
 	default:
 		return "unknown"
 	}
+}
+
+func arrayDesc(arr []any) string {
+	if len(arr) == 0 {
+		return "array(empty)"
+	}
+	return "array(" + typeName(arr[0]) + ")"
 }
 
 func joinPath(prefix, key string) string {
