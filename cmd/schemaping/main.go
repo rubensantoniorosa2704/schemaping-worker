@@ -108,14 +108,19 @@ func main() {
 		}
 	}
 
+	checkers := make(map[string]*checker.Checker, len(monitors))
+	for _, m := range monitors {
+		checkers[m.Name] = checker.New(m)
+	}
+
 	switch cmd {
 	case "check":
 		for _, m := range monitors {
-			executeAndPrint(m, false)
+			executeAndPrint(checkers[m.Name], m, false)
 		}
 	case "run":
 		fmt.Printf("SchemaPing v%s starting — %d monitor(s) loaded\n\n", version, len(monitors))
-		scheduler.Run(monitors, func(m types.Monitor) { executeAndPrint(m, true) })
+		scheduler.Run(monitors, func(m types.Monitor) { executeAndPrint(checkers[m.Name], m, true) })
 		fmt.Println("\nSchemaPing stopped.")
 	}
 }
@@ -130,13 +135,13 @@ type checkResult struct {
 }
 
 // runCheck executes a monitor check, persists the snapshot (only on success), and returns the result.
-func runCheck(m types.Monitor, showTimestamp bool) checkResult {
+func runCheck(c *checker.Checker, m types.Monitor, showTimestamp bool) checkResult {
 	prefix := fmt.Sprintf("[%s]", m.Name)
 	if showTimestamp {
 		prefix = fmt.Sprintf("%s [%s]", time.Now().Format("15:04:05"), m.Name)
 	}
 
-	snap := checker.Run(m)
+	snap := c.Run()
 
 	prev, err := filestore.Load(m.Name)
 	hasPrev := err == nil
@@ -196,6 +201,6 @@ func printResult(r checkResult) {
 	}
 }
 
-func executeAndPrint(m types.Monitor, showTimestamp bool) {
-	printResult(runCheck(m, showTimestamp))
+func executeAndPrint(c *checker.Checker, m types.Monitor, showTimestamp bool) {
+	printResult(runCheck(c, m, showTimestamp))
 }

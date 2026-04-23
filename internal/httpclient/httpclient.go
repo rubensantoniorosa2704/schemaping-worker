@@ -8,10 +8,13 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
 )
 
-// Do executes an HTTP request for the given monitor and returns the status code, body, and any transport error.
-func Do(m types.Monitor) (statusCode int, body []byte, err error) {
-	client := &http.Client{Timeout: m.Timeout}
+// New returns an HTTP client configured for the given monitor's timeout.
+func New(m types.Monitor) *http.Client {
+	return &http.Client{Timeout: m.Timeout}
+}
 
+// Do executes an HTTP request for the given monitor and returns the status code, body, and any transport error.
+func Do(client *http.Client, m types.Monitor) (statusCode int, body []byte, err error) {
 	req, err := http.NewRequest(m.Method, m.URL, nil)
 	if err != nil {
 		return 0, nil, fmt.Errorf("httpclient: build request: %w", err)
