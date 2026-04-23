@@ -15,11 +15,11 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
 )
 
-const version = "0.1.0"
+var version = "dev"
 
 var printMu sync.Mutex
 
-const helpText = `SchemaPing v` + version + ` — API schema drift monitor
+const helpText = `SchemaPing — API schema drift monitor
 
 USAGE:
   schemaping <command> [flags]
@@ -63,7 +63,7 @@ func main() {
 	}
 
 	if args[0] == "--version" || args[0] == "version" {
-		fmt.Println("schemaping v" + version)
+		fmt.Println("schemaping " + version)
 		return
 	}
 
