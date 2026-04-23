@@ -120,13 +120,23 @@ func main() {
 	}
 }
 
-func executeAndPrint(m types.Monitor, showTimestamp bool) {
-	snap := checker.Run(m)
+// checkResult holds the outcome of a single monitor check.
+type checkResult struct {
+	prefix  string
+	snap    types.Snapshot
+	prev    types.Snapshot
+	hasPrev bool
+	diffs   []types.DiffResult
+}
 
+// runCheck executes a monitor check, persists the snapshot (only on success), and returns the result.
+func runCheck(m types.Monitor, showTimestamp bool) checkResult {
 	prefix := fmt.Sprintf("[%s]", m.Name)
 	if showTimestamp {
 		prefix = fmt.Sprintf("%s [%s]", time.Now().Format("15:04:05"), m.Name)
 	}
+
+	snap := checker.Run(m)
 
 	prev, err := filestore.Load(m.Name)
 	hasPrev := err == nil
@@ -134,43 +144,58 @@ func executeAndPrint(m types.Monitor, showTimestamp bool) {
 		fmt.Fprintf(os.Stderr, "%s storage error: %s\n", prefix, err)
 	}
 
-	if saveErr := filestore.Save(snap); saveErr != nil {
-		fmt.Fprintf(os.Stderr, "%s save error: %s\n", prefix, saveErr)
+	if snap.Error == "" {
+		if saveErr := filestore.Save(snap); saveErr != nil {
+			fmt.Fprintf(os.Stderr, "%s save error: %s\n", prefix, saveErr)
+		}
 	}
 
-	results := diff.Compare(prev, snap)
+	return checkResult{
+		prefix:  prefix,
+		snap:    snap,
+		prev:    prev,
+		hasPrev: hasPrev,
+		diffs:   diff.Compare(prev, snap),
+	}
+}
 
+// printResult writes the check outcome to stdout.
+func printResult(r checkResult) {
 	printMu.Lock()
 	defer printMu.Unlock()
 
-	if snap.Error != "" {
-		fmt.Printf("%s error: %s\n", prefix, snap.Error)
+	if r.snap.Error != "" {
+		fmt.Printf("%s error: %s\n", r.prefix, r.snap.Error)
 		return
 	}
 
-	if !hasPrev {
-		fmt.Printf("%s first snapshot captured (status %d)\n", prefix, snap.StatusCode)
+	if !r.hasPrev {
+		fmt.Printf("%s first snapshot captured (status %d)\n", r.prefix, r.snap.StatusCode)
 		return
 	}
 
-	if len(results) == 0 {
-		fmt.Printf("%s no changes detected\n", prefix)
+	if len(r.diffs) == 0 {
+		fmt.Printf("%s no changes detected\n", r.prefix)
 		return
 	}
 
-	fmt.Printf("%s change detected\n", prefix)
-	for _, r := range results {
-		switch r.Kind {
+	fmt.Printf("%s change detected\n", r.prefix)
+	for _, d := range r.diffs {
+		switch d.Kind {
 		case types.ChangeKindAdded:
-			fmt.Printf("  + %s added (%s)\n", r.Path, r.After)
+			fmt.Printf("  + %s added (%s)\n", d.Path, d.After)
 		case types.ChangeKindRemoved:
-			fmt.Printf("  - %s removed (%s)\n", r.Path, r.Before)
+			fmt.Printf("  - %s removed (%s)\n", d.Path, d.Before)
 		case types.ChangeKindTypeChanged:
-			fmt.Printf("  ~ %s changed: %s -> %s\n", r.Path, r.Before, r.After)
+			fmt.Printf("  ~ %s changed: %s -> %s\n", d.Path, d.Before, d.After)
 		case types.ChangeKindNullabilityChanged:
-			fmt.Printf("  ~ %s nullability changed: %s -> %s\n", r.Path, r.Before, r.After)
+			fmt.Printf("  ~ %s nullability changed: %s -> %s\n", d.Path, d.Before, d.After)
 		case types.ChangeKindStatusChanged:
-			fmt.Printf("  ~ status changed: %s -> %s\n", r.Before, r.After)
+			fmt.Printf("  ~ status changed: %s -> %s\n", d.Before, d.After)
 		}
 	}
+}
+
+func executeAndPrint(m types.Monitor, showTimestamp bool) {
+	printResult(runCheck(m, showTimestamp))
 }
