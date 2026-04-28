@@ -71,7 +71,11 @@ In `run` mode, the scheduler fires this flow for each monitor on its configured 
 | `nullability_changed` | One side is `null`, the other is not | `~ user.address nullability changed: null -> object` |
 | `status_changed` | HTTP status code differs between snapshots | `~ status changed: 200 -> 404` |
 
-Arrays are compared by type only — their contents are not diffed.
+Arrays are compared by schema, using the **first element** as a representative of the array's structure. This means:
+
+- Heterogeneous arrays (e.g. `[1, "foo", {}]`) are not fully analysed — only the first element is used.
+- Nested arrays (arrays of arrays) are not recursed into beyond the first level.
+- Changes in array length are not reported.
 
 ---
 

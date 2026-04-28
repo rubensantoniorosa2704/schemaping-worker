@@ -91,6 +91,14 @@ func compareValues(path string, before, after any) []types.DiffResult {
 	return nil
 }
 
+// diffArrays compares two arrays by inspecting only their first element as a
+// representative of the array's schema. This means:
+//   - Heterogeneous arrays (e.g. [1, "foo", {}]) are not fully analysed; only
+//     the first element is used to infer the element type.
+//   - Nested arrays (arrays of arrays) are not recursed into beyond the first
+//     level; only the element type is compared.
+//   - Changes in array length are not reported; only structural/type changes
+//     in the element schema are detected.
 func diffArrays(path string, before, after []any) []types.DiffResult {
 	bEmpty, aEmpty := len(before) == 0, len(after) == 0
 

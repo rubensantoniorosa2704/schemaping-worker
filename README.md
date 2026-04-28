@@ -18,6 +18,8 @@ SchemaPing monitors HTTP JSON endpoints, compares response structures over time,
 - Unexpected HTTP status codes
 - Request failures and timeouts
 
+> **Array diffing limitation:** arrays are compared using only their first element as a schema representative. Heterogeneous arrays, nested arrays, and length changes are not reported.
+
 ---
 
 ## Getting started
