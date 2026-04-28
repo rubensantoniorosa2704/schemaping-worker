@@ -19,6 +19,15 @@ var version = "dev"
 
 var printMu sync.Mutex
 
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorCyan   = "\033[36m"
+	colorBold   = "\033[1m"
+)
+
 const helpText = `SchemaPing — API schema drift monitor
 
 USAGE:
@@ -119,7 +128,7 @@ func main() {
 			executeAndPrint(checkers[m.Name], m, false)
 		}
 	case "run":
-		fmt.Printf("SchemaPing v%s starting — %d monitor(s) loaded\n\n", version, len(monitors))
+		fmt.Printf("%sSchemaPing v%s%s starting — %d monitor(s) loaded\n\n", colorBold, version, colorReset, len(monitors))
 		scheduler.Run(monitors, func(m types.Monitor) { executeAndPrint(checkers[m.Name], m, true) })
 		fmt.Println("\nSchemaPing stopped.")
 	}
@@ -170,33 +179,33 @@ func printResult(r checkResult) {
 	defer printMu.Unlock()
 
 	if r.snap.Error != "" {
-		fmt.Printf("%s error: %s\n", r.prefix, r.snap.Error)
+		fmt.Printf("%s%s error:%s %s\n", colorRed, r.prefix, colorReset, r.snap.Error)
 		return
 	}
 
 	if !r.hasPrev {
-		fmt.Printf("%s first snapshot captured (status %d)\n", r.prefix, r.snap.StatusCode)
+		fmt.Printf("%s%s%s first snapshot captured (status %d)\n", colorCyan, r.prefix, colorReset, r.snap.StatusCode)
 		return
 	}
 
 	if len(r.diffs) == 0 {
-		fmt.Printf("%s no changes detected\n", r.prefix)
+		fmt.Printf("%s%s%s no changes detected\n", colorGreen, r.prefix, colorReset)
 		return
 	}
 
-	fmt.Printf("%s change detected\n", r.prefix)
+	fmt.Printf("%s%s%s change detected\n", colorYellow+colorBold, r.prefix, colorReset)
 	for _, d := range r.diffs {
 		switch d.Kind {
 		case types.ChangeKindAdded:
-			fmt.Printf("  + %s added (%s)\n", d.Path, d.After)
+			fmt.Printf("  %s+ %s added (%s)%s\n", colorGreen, d.Path, d.After, colorReset)
 		case types.ChangeKindRemoved:
-			fmt.Printf("  - %s removed (%s)\n", d.Path, d.Before)
+			fmt.Printf("  %s- %s removed (%s)%s\n", colorRed, d.Path, d.Before, colorReset)
 		case types.ChangeKindTypeChanged:
-			fmt.Printf("  ~ %s changed: %s -> %s\n", d.Path, d.Before, d.After)
+			fmt.Printf("  %s~ %s changed: %s -> %s%s\n", colorYellow, d.Path, d.Before, d.After, colorReset)
 		case types.ChangeKindNullabilityChanged:
-			fmt.Printf("  ~ %s nullability changed: %s -> %s\n", d.Path, d.Before, d.After)
+			fmt.Printf("  %s~ %s nullability changed: %s -> %s%s\n", colorYellow, d.Path, d.Before, d.After, colorReset)
 		case types.ChangeKindStatusChanged:
-			fmt.Printf("  ~ status changed: %s -> %s\n", d.Before, d.After)
+			fmt.Printf("  %s~ status changed: %s -> %s%s\n", colorYellow, d.Before, d.After, colorReset)
 		}
 	}
 }
