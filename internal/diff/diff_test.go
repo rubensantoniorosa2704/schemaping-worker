@@ -129,3 +129,37 @@ func TestCompare_ArrayElementTypeChanged(t *testing.T) {
 		t.Fatalf("unexpected types: %v", results[0])
 	}
 }
+
+func TestCompare_NilBodyBefore(t *testing.T) {
+	before := snap(200, nil)
+	after := snap(200, map[string]any{"id": float64(1)})
+	results := Compare(before, after)
+	if len(results) != 1 || results[0].Kind != types.ChangeKindAdded || results[0].Path != "id" {
+		t.Fatalf("expected id added, got %v", results)
+	}
+}
+
+func TestCompare_NilBodyAfter(t *testing.T) {
+	before := snap(200, map[string]any{"id": float64(1)})
+	after := snap(200, nil)
+	results := Compare(before, after)
+	if len(results) != 1 || results[0].Kind != types.ChangeKindRemoved || results[0].Path != "id" {
+		t.Fatalf("expected id removed, got %v", results)
+	}
+}
+
+func TestCompare_ArrayObjectElementTypeChanged(t *testing.T) {
+	before := snap(200, map[string]any{
+		"items": []any{map[string]any{"price": "9.99"}},
+	})
+	after := snap(200, map[string]any{
+		"items": []any{map[string]any{"price": float64(9.99)}},
+	})
+	results := Compare(before, after)
+	if len(results) != 1 || results[0].Kind != types.ChangeKindTypeChanged || results[0].Path != "items[].price" {
+		t.Fatalf("expected items[].price type change, got %v", results)
+	}
+	if results[0].Before != "string" || results[0].After != "number" {
+		t.Fatalf("unexpected types: %v", results[0])
+	}
+}
