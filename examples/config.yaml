@@ -6,3 +6,36 @@ monitors:
   - name: httpbin-json
     url: https://httpbin.org/json
     interval: 5m
+
+  # Example: monitor with its own webhook (overrides global)
+  # - name: internal-api
+  #   url: https://internal.example.com/api
+  #   interval: 2m
+  #   webhooks:
+  #     - type: discord
+  #       url: ${DISCORD_INTERNAL_WEBHOOK_URL}
+
+  # Example: monitor with notifications silenced
+  # - name: noisy-api
+  #   url: https://noisy.example.com/api
+  #   interval: 30s
+  #   webhooks: []
+
+# Global webhooks — fire for every monitor that detects a change,
+# unless the monitor defines its own webhooks list.
+#
+# Sensitive values (tokens, URLs) should never be hardcoded here.
+# Use ${ENV_VAR} references and export the variables before running.
+#
+# Discord setup:
+#   1. Open the channel → Edit Channel → Integrations → Webhooks → New Webhook
+#   2. Copy the webhook URL
+#   3. export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
+#
+# webhooks:
+#   - type: discord
+#     url: ${DISCORD_WEBHOOK_URL}
+#
+#   - type: telegram
+#     url: https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage
+#     chat_id: ${TELEGRAM_CHAT_ID}

@@ -6,7 +6,7 @@
 
 Detect API schema drift before your integrations break.
 
-SchemaPing monitors HTTP JSON endpoints, compares response structures over time, and prints diffs in the terminal when something changes.
+SchemaPing monitors HTTP JSON endpoints, compares response structures over time, and alerts you when something changes — in the terminal and via webhooks.
 
 ---
 
@@ -45,6 +45,9 @@ schemaping run --config ./examples/config.yaml
 
 # override the interval for all monitors
 schemaping run --config ./examples/config.yaml --interval 30s
+
+# verify that all configured webhooks are reachable
+schemaping test-webhooks --config ./examples/config.yaml
 ```
 
 ---
@@ -60,7 +63,11 @@ monitors:
     timeout: 10s
     expected_status: 200
     headers:
-      Authorization: Bearer YOUR_TOKEN
+      Authorization: Bearer ${API_TOKEN}
+
+webhooks:
+  - type: discord
+    url: ${DISCORD_WEBHOOK_URL}
 ```
 
 | Field | Default | Description |
@@ -72,6 +79,102 @@ monitors:
 | `timeout` | `10s` | Request timeout |
 | `expected_status` | `200` | Expected HTTP status code |
 | `headers` | — | Optional request headers |
+| `webhooks` | — | Per-monitor webhook override (see below) |
+
+---
+
+## Webhook alerts
+
+SchemaPing can send notifications to external platforms when a schema change is detected.
+
+### Supported platforms
+
+| Platform | `type` | Required fields |
+|---|---|---|
+| Discord | `discord` | `url` |
+| Telegram | `telegram` | `url`, `chat_id` |
+
+### Global webhooks
+
+Defined once at the top level, they fire for every monitor that detects a change:
+
+```yaml
+webhooks:
+  - type: discord
+    url: ${DISCORD_WEBHOOK_URL}
+  - type: telegram
+    url: https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage
+    chat_id: ${TELEGRAM_CHAT_ID}
+
+monitors:
+  - name: payments-api
+    url: https://api.example.com/v1/payments
+  - name: users-api
+    url: https://api.example.com/v1/users
+```
+
+### Per-monitor override
+
+A monitor can define its own `webhooks` list, which replaces the global list for that monitor only:
+
+```yaml
+webhooks:
+  - type: discord
+    url: ${DISCORD_WEBHOOK_URL}   # default channel
+
+monitors:
+  - name: payments-api
+    url: https://api.example.com/v1/payments
+    # no webhooks field → uses global
+
+  - name: critical-api
+    url: https://api.example.com/critical
+    webhooks:                     # override → different channel
+      - type: discord
+        url: ${DISCORD_CRITICAL_WEBHOOK_URL}
+
+  - name: noisy-api
+    url: https://api.example.com/noisy
+    webhooks: []                  # silenced → no notifications
+```
+
+### Environment variables
+
+Tokens and webhook URLs should never be hardcoded in the config file. Use `${ENV_VAR}` references — they are expanded at startup before the YAML is parsed, so they work in any field.
+
+```bash
+export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
+export TELEGRAM_BOT_TOKEN="your-bot-token"
+export TELEGRAM_CHAT_ID="your-chat-id"
+
+schemaping run --config ./config.yaml
+```
+
+### Discord setup
+
+1. Open the target channel → **Edit Channel** → **Integrations** → **Webhooks** → **New Webhook**
+2. Give it a name and copy the webhook URL
+3. Export the URL: `export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."`
+
+### Telegram setup
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and copy the token
+2. Get your chat ID (send a message to the bot and call `getUpdates`)
+3. Export both: `export TELEGRAM_BOT_TOKEN="..."` and `export TELEGRAM_CHAT_ID="..."`
+
+### Verifying your setup
+
+```bash
+schemaping test-webhooks --config ./config.yaml
+```
+
+```
+Testing 2 webhook(s)...
+  [1] OK
+  [2] OK
+```
+
+Exits with code `1` if any webhook fails, making it safe to use in CI/CD pipelines.
 
 ---
 
@@ -91,7 +194,7 @@ Snapshots are saved to `~/.schemaping/snapshots/` after each check.
 
 ## Roadmap
 
-- [ ] Webhook alerts
+- [x] Webhook alerts (Discord, Telegram)
 - [ ] Postgres persistence
 - [ ] Snapshot history
 - [ ] OpenAPI diff support
