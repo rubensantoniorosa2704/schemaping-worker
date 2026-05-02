@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build binaries
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          LDFLAGS="-X main.version=${VERSION}"
+
+          GOOS=linux   GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/schemaping-linux-amd64   ./cmd/schemaping
+          GOOS=linux   GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/schemaping-linux-arm64   ./cmd/schemaping
+          GOOS=darwin  GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/schemaping-darwin-amd64  ./cmd/schemaping
+          GOOS=darwin  GOARCH=arm64 go build -ldflags "${LDFLAGS}" -o dist/schemaping-darwin-arm64  ./cmd/schemaping
+          GOOS=windows GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/schemaping-windows-amd64.exe ./cmd/schemaping
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

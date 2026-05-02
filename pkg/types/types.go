@@ -5,8 +5,8 @@ import "time"
 // WebhookConfig holds the configuration for a single notification webhook.
 // The URL and other sensitive fields support ${ENV_VAR} expansion.
 type WebhookConfig struct {
-	Type   string `yaml:"type"`   // "discord" or "telegram"
-	URL    string `yaml:"url"`    // webhook URL (Discord) or bot API URL (Telegram)
+	Type   string `yaml:"type"`    // "discord" or "telegram"
+	URL    string `yaml:"url"`     // webhook URL (Discord) or bot API URL (Telegram)
 	ChatID string `yaml:"chat_id"` // required for Telegram
 }
 
