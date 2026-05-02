@@ -2,6 +2,14 @@ package types
 
 import "time"
 
+// WebhookConfig holds the configuration for a single notification webhook.
+// The URL and other sensitive fields support ${ENV_VAR} expansion.
+type WebhookConfig struct {
+	Type   string `yaml:"type"`   // "discord" or "telegram"
+	URL    string `yaml:"url"`    // webhook URL (Discord) or bot API URL (Telegram)
+	ChatID string `yaml:"chat_id"` // required for Telegram
+}
+
 // Monitor represents a configured endpoint to be monitored.
 type Monitor struct {
 	Name           string            `yaml:"name"`
@@ -11,6 +19,9 @@ type Monitor struct {
 	Timeout        time.Duration     `yaml:"timeout"`
 	ExpectedStatus int               `yaml:"expected_status"`
 	Headers        map[string]string `yaml:"headers"`
+	// Webhooks overrides the global webhook list for this monitor.
+	// If nil, global webhooks are used. If empty slice, notifications are silenced.
+	Webhooks []WebhookConfig `yaml:"webhooks"`
 }
 
 // Snapshot represents a captured response from a monitor at a point in time.
