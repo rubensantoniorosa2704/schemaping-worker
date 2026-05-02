@@ -10,6 +10,7 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/checker"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/config"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/diff"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/scheduler"
 	filestore "github.com/rubensantoniorosa2704/schemaping-worker/internal/storage/file"
 	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
@@ -34,8 +35,9 @@ USAGE:
   schemaping <command> [flags]
 
 COMMANDS:
-  run     Load config and run checks continuously on each monitor's interval
-  check   Run a single check for all monitors and exit
+  run            Load config and run checks continuously on each monitor's interval
+  check          Run a single check for all monitors and exit
+  test-webhooks  Send a test notification to all configured webhooks and exit
 
 FLAGS:
   --config <path>       Path to config file (default: ./config.yaml)
@@ -47,6 +49,7 @@ EXAMPLES:
   schemaping run --config ./examples/config.yaml
   schemaping run --config ./examples/config.yaml --interval 30s
   schemaping check --config ./examples/config.yaml
+  schemaping test-webhooks --config ./examples/config.yaml
 
 CONFIG FORMAT (YAML):
   monitors:
@@ -57,7 +60,14 @@ CONFIG FORMAT (YAML):
       timeout: 10s
       expected_status: 200
       headers:
-        Authorization: Bearer YOUR_TOKEN
+        Authorization: Bearer ${API_TOKEN}
+
+  webhooks:
+    - type: discord
+      url: ${DISCORD_WEBHOOK_URL}
+    - type: telegram
+      url: https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage
+      chat_id: ${TELEGRAM_CHAT_ID}
 
 SOURCE:
   https://github.com/rubensantoniorosa2704/schemaping-worker
@@ -77,7 +87,7 @@ func main() {
 	}
 
 	cmd := args[0]
-	if cmd != "run" && cmd != "check" {
+	if cmd != "run" && cmd != "check" && cmd != "test-webhooks" {
 		fmt.Fprintf(os.Stderr, "unknown command: %q\nRun 'schemaping --help' for usage.\n", cmd)
 		os.Exit(1)
 	}
@@ -105,33 +115,94 @@ func main() {
 		}
 	}
 
-	monitors, err := config.Load(configPath)
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 
 	if intervalOverride > 0 {
-		for i := range monitors {
-			monitors[i].Interval = intervalOverride
+		for i := range cfg.Monitors {
+			cfg.Monitors[i].Interval = intervalOverride
 		}
 	}
 
-	checkers := make(map[string]*checker.Checker, len(monitors))
-	for _, m := range monitors {
+	notifiers := buildNotifiers(cfg.Webhooks)
+
+	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
+	for _, m := range cfg.Monitors {
 		checkers[m.Name] = checker.New(m)
 	}
 
 	switch cmd {
 	case "check":
-		for _, m := range monitors {
-			executeAndPrint(checkers[m.Name], m, false)
+		for _, m := range cfg.Monitors {
+			executeAndPrint(checkers[m.Name], m, false, resolveNotifiers(m, notifiers, cfg))
 		}
 	case "run":
-		fmt.Printf("%sSchemaPing v%s%s starting — %d monitor(s) loaded\n\n", colorBold, version, colorReset, len(monitors))
-		scheduler.Run(monitors, func(m types.Monitor) { executeAndPrint(checkers[m.Name], m, true) })
+		fmt.Printf("%sSchemaPing v%s%s starting — %d monitor(s) loaded\n\n", colorBold, version, colorReset, len(cfg.Monitors))
+		scheduler.Run(cfg.Monitors, func(m types.Monitor) {
+			executeAndPrint(checkers[m.Name], m, true, resolveNotifiers(m, notifiers, cfg))
+		})
 		fmt.Println("\nSchemaPing stopped.")
+	case "test-webhooks":
+		runTestWebhooks(notifiers)
 	}
+}
+
+// runTestWebhooks sends a test notification to every global notifier and
+// reports success or failure for each one.
+func runTestWebhooks(notifiers []notifier.Notifier) {
+	if len(notifiers) == 0 {
+		fmt.Println("No webhooks configured.")
+		return
+	}
+	fmt.Printf("Testing %d webhook(s)...\n", len(notifiers))
+	ok := true
+	for i, n := range notifiers {
+		t, isTester := n.(notifier.Tester)
+		if !isTester {
+			fmt.Printf("  [%d] skipped (does not support test)\n", i+1)
+			continue
+		}
+		if err := t.Test(); err != nil {
+			fmt.Printf("  [%d] %sFAIL%s — %s\n", i+1, colorRed, colorReset, err)
+			ok = false
+		} else {
+			fmt.Printf("  [%d] %sOK%s\n", i+1, colorGreen, colorReset)
+		}
+	}
+	if !ok {
+		os.Exit(1)
+	}
+}
+
+// buildNotifiers constructs a list of Notifier instances from webhook configs.
+// Unknown types are logged and skipped.
+func buildNotifiers(cfgs []types.WebhookConfig) []notifier.Notifier {
+	var result []notifier.Notifier
+	for _, wh := range cfgs {
+		switch wh.Type {
+		case "discord":
+			result = append(result, notifier.NewDiscord(wh.URL))
+		case "telegram":
+			result = append(result, notifier.NewTelegram(wh.URL, wh.ChatID))
+		default:
+			fmt.Fprintf(os.Stderr, "[notifier] unknown webhook type %q — skipping\n", wh.Type)
+		}
+	}
+	return result
+}
+
+// resolveNotifiers returns the notifiers to use for a given monitor.
+// If the monitor defines its own webhooks, those are used (override).
+// Otherwise the global notifiers are used.
+// An explicit empty webhooks list on the monitor silences all notifications.
+func resolveNotifiers(m types.Monitor, global []notifier.Notifier, cfg config.Config) []notifier.Notifier {
+	if m.Webhooks == nil {
+		return global
+	}
+	return buildNotifiers(m.Webhooks)
 }
 
 // checkResult holds the outcome of a single monitor check.
@@ -210,6 +281,13 @@ func printResult(r checkResult) {
 	}
 }
 
-func executeAndPrint(c *checker.Checker, m types.Monitor, showTimestamp bool) {
-	printResult(runCheck(c, m, showTimestamp))
+func executeAndPrint(c *checker.Checker, m types.Monitor, showTimestamp bool, notifiers []notifier.Notifier) {
+	r := runCheck(c, m, showTimestamp)
+	printResult(r)
+
+	// Fire webhook notifications only when a real change is detected
+	// (i.e., there was a previous snapshot to compare against).
+	if r.hasPrev && len(r.diffs) > 0 {
+		notifier.NotifyAll(notifiers, m.Name, r.diffs)
+	}
 }
