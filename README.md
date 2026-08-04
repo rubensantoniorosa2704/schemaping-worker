@@ -62,6 +62,8 @@ monitors:
     interval: 5m
     timeout: 10s
     expected_status: 200
+    retries: 3        # retry up to 3 times on transient failures (5xx, 429, timeouts)
+    retry_backoff: 2s # base interval for exponential backoff (2s → 4s → 8s…, capped at 30s)
     headers:
       Authorization: Bearer ${API_TOKEN}
 
@@ -78,6 +80,8 @@ webhooks:
 | `interval` | `1m` | How often to check |
 | `timeout` | `10s` | Request timeout |
 | `expected_status` | `200` | Expected HTTP status code |
+| `retries` | `3` | Additional attempts after a transient failure (5xx, 429, timeout). Set to `0` to disable. |
+| `retry_backoff` | `2s` | Base duration for exponential backoff between retries (capped at 30s). |
 | `headers` | — | Optional request headers |
 | `webhooks` | — | Per-monitor webhook override (see below) |
 
@@ -195,6 +199,7 @@ Snapshots are saved to `~/.schemaping/snapshots/` after each check.
 ## Roadmap
 
 - [x] Webhook alerts (Discord, Telegram)
+- [x] Retry with exponential backoff
 - [ ] Postgres persistence
 - [ ] Snapshot history
 - [ ] OpenAPI diff support

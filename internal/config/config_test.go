@@ -315,3 +315,74 @@ webhooks:
 		t.Errorf("webhook[1].ChatID not expanded: %s", tg.ChatID)
 	}
 }
+
+// --- retry defaults ---
+
+func TestLoad_RetryDefaults(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.Monitors[0]
+	if m.Retries == nil {
+		t.Fatal("Retries should not be nil after Load")
+	}
+	if *m.Retries != 3 {
+		t.Errorf("default Retries: want 3, got %d", *m.Retries)
+	}
+	if m.RetryBackoff != 2*time.Second {
+		t.Errorf("default RetryBackoff: want 2s, got %v", m.RetryBackoff)
+	}
+}
+
+func TestLoad_RetryExplicitValues(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+    retries: 5
+    retry_backoff: 10s
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.Monitors[0]
+	if m.Retries == nil {
+		t.Fatal("Retries should not be nil")
+	}
+	if *m.Retries != 5 {
+		t.Errorf("Retries: want 5, got %d", *m.Retries)
+	}
+	if m.RetryBackoff != 10*time.Second {
+		t.Errorf("RetryBackoff: want 10s, got %v", m.RetryBackoff)
+	}
+}
+
+func TestLoad_RetryZeroDisablesRetry(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+    retries: 0
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	m := cfg.Monitors[0]
+	if m.Retries == nil {
+		t.Fatal("Retries should not be nil (should be pointer to 0)")
+	}
+	if *m.Retries != 0 {
+		t.Errorf("explicit retries: 0 should not be overridden, got %d", *m.Retries)
+	}
+}

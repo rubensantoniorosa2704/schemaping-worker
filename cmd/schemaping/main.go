@@ -131,7 +131,14 @@ func main() {
 
 	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
 	for _, m := range cfg.Monitors {
-		checkers[m.Name] = checker.New(m)
+		captured := m // capture for closure
+		checkers[m.Name] = checker.New(m, func(e checker.RetryEvent) {
+			printMu.Lock()
+			defer printMu.Unlock()
+			fmt.Fprintf(os.Stderr, "%s[%s]%s retrying (attempt %d/%d, reason: %s, next in %s)\n",
+				colorYellow, captured.Name, colorReset,
+				e.Attempt, e.MaxAttempts, e.Reason, e.NextIn)
+		})
 	}
 
 	switch cmd {

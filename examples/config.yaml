@@ -2,10 +2,24 @@ monitors:
   - name: jsonplaceholder-post
     url: https://jsonplaceholder.typicode.com/posts/1
     interval: 1m
+    # retries: 3          # default: 3 additional attempts after first failure
+    # retry_backoff: 2s   # default: 2s base for exponential backoff (2s→4s→8s…, capped at 30s)
 
   - name: httpbin-json
     url: https://httpbin.org/json
     interval: 5m
+
+  # Example: monitor with custom retry settings
+  # - name: flaky-api
+  #   url: https://flaky.example.com/api
+  #   interval: 2m
+  #   retries: 5          # retry up to 5 times on transient failures (5xx, 429, timeouts)
+  #   retry_backoff: 1s   # start with 1s, then 2s, 4s, 8s, 16s (capped at 30s)
+
+  # Example: disable retries for a specific monitor
+  # - name: no-retry-api
+  #   url: https://strict.example.com/api
+  #   retries: 0          # disable retry — first failure is final
 
   # Example: monitor with its own webhook (overrides global)
   # - name: internal-api

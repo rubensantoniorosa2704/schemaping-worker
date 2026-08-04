@@ -60,6 +60,15 @@ func Load(path string) (Config, error) {
 		if m.Interval == 0 {
 			m.Interval = time.Minute
 		}
+		// Retries uses *int so we can distinguish "not set" (nil → default 3)
+		// from "explicitly zero" (retries: 0 → disable retry).
+		if m.Retries == nil {
+			defaultRetries := 3
+			m.Retries = &defaultRetries
+		}
+		if m.RetryBackoff == 0 {
+			m.RetryBackoff = 2 * time.Second
+		}
 	}
 
 	return Config{Monitors: f.Monitors, Webhooks: f.Webhooks}, nil

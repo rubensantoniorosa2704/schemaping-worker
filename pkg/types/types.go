@@ -22,6 +22,14 @@ type Monitor struct {
 	// Webhooks overrides the global webhook list for this monitor.
 	// If nil, global webhooks are used. If empty slice, notifications are silenced.
 	Webhooks []WebhookConfig `yaml:"webhooks"`
+	// Retries is the number of additional attempts after the first transient failure.
+	// nil means "not configured" and config.Load will apply the default (3).
+	// A pointer to 0 means retries are explicitly disabled — no retry will be performed.
+	Retries *int `yaml:"retries"`
+	// RetryBackoff is the base interval for exponential backoff between attempts.
+	// Zero value means "not configured" and config.Load will apply the default (2s).
+	// The actual wait before attempt n is: RetryBackoff * 2^(n-1), capped at 30s.
+	RetryBackoff time.Duration `yaml:"retry_backoff"`
 }
 
 // Snapshot represents a captured response from a monitor at a point in time.

@@ -31,8 +31,11 @@ It does not monitor uptime. It monitors **contract**.
 config.Load()
     └── for each Monitor
             └── checker.Run()
-                    ├── httpclient.Do()       → HTTP request
-                    └── Snapshot{}            → status + parsed body
+                    └── retry loop (up to retries+1 attempts)
+                            ├── httpclient.Do()       → HTTP request
+                            ├── retry.IsRetryable()   → transient? retry
+                            ├── retry.Backoff()       → exponential wait
+                            └── Snapshot{}            → status + parsed body
 
             └── storage/file.Load()           → previous Snapshot from disk
             └── storage/file.Save(current)    → overwrite snapshot on disk
@@ -51,7 +54,8 @@ In `run` mode, the scheduler fires this flow for each monitor on its configured 
 | `pkg/types` | [`pkg/types/types.go`](../pkg/types/types.go) | Shared domain types: `Monitor`, `Snapshot`, `DiffResult`, `ChangeKind` |
 | `internal/config` | [`internal/config/config.go`](../internal/config/config.go) | Load and validate `config.yaml`, apply defaults |
 | `internal/httpclient` | [`internal/httpclient/httpclient.go`](../internal/httpclient/httpclient.go) | Execute HTTP request with timeout and headers |
-| `internal/checker` | [`internal/checker/checker.go`](../internal/checker/checker.go) | Orchestrate a single check, build `Snapshot`, classify failures |
+| `internal/checker` | [`internal/checker/checker.go`](../internal/checker/checker.go) | Orchestrate a single check with retry loop, build `Snapshot`, classify failures |
+| `internal/retry` | [`internal/retry/retry.go`](../internal/retry/retry.go) | Classify retryable failures (`IsRetryable`) and compute exponential backoff (`Backoff`) |
 | `internal/diff` | [`internal/diff/diff.go`](../internal/diff/diff.go) | Compare two snapshots, return list of structural changes |
 | `internal/scheduler` | [`internal/scheduler/scheduler.go`](../internal/scheduler/scheduler.go) | Run monitors on intervals, handle OS signals for graceful stop |
 | `internal/storage/file` | [`internal/storage/file/file.go`](../internal/storage/file/file.go) | Persist and load snapshots as JSON files in `~/.schemaping/snapshots/` |
