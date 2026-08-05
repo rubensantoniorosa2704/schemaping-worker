@@ -39,6 +39,7 @@ func Run(monitors []types.Monitor, fn func(types.Monitor)) {
 	}
 
 	<-quit
+	signal.Stop(quit)
 
 	for _, stop := range stops {
 		close(stop)
