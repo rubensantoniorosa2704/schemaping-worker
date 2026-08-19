@@ -84,6 +84,7 @@ webhooks:
 | `retry_backoff` | `2s` | Base duration for exponential backoff between retries (capped at 30s). |
 | `headers` | — | Optional request headers |
 | `webhooks` | — | Per-monitor webhook override (see below) |
+| `raw` | `false` | Save the raw response body to disk after each successful check (see [Raw snapshot storage](#raw-snapshot-storage)) |
 
 ---
 
@@ -196,13 +197,32 @@ Snapshots are saved to `~/.schemaping/snapshots/` after each check.
 
 ---
 
+## Raw snapshot storage
+
+By default, SchemaPing reports drift to the terminal and via webhooks — what you do with that information is up to you.
+
+If you want to keep the raw response for each check (for auditing, debugging, or feeding into your own pipeline), enable `raw` on a per-monitor basis:
+
+```yaml
+monitors:
+  - name: payments-api
+    url: https://api.example.com/v1/payments
+    raw: true
+```
+
+When enabled, SchemaPing saves the raw response body to `~/.schemaping/raw/<monitor-name>/` after each successful check. The filename includes the capture timestamp (e.g. `payments-api-2026-08-19T08-45-00Z.json`), and the previous file is always replaced — there is no unbounded growth.
+
+SchemaPing does not ship adapters for external storage targets (S3, Postgres, message brokers). The raw files are yours to consume however you like — sync them to S3, tail them into a log shipper, or ignore them entirely. The `raw` flag is opt-in and has no effect on drift detection or notifications.
+
+---
+
 ## Roadmap
 
 - [x] Webhook alerts (Discord, Telegram)
 - [x] Retry with exponential backoff
-- [ ] Postgres persistence
+- [x] Raw response storage (opt-in, per-monitor)
+- [ ] OpenAPI diff support (3.0)
 - [ ] Snapshot history
-- [ ] OpenAPI diff support
 
 ---
 

@@ -9,6 +9,16 @@ monitors:
     url: https://httpbin.org/json
     interval: 5m
 
+  # Example: save the raw response body to disk after each successful check.
+  # Useful for auditing, debugging, or feeding into your own pipeline.
+  # Files are written to ~/.schemaping/raw/<monitor-name>/<monitor-name>-<timestamp>.json
+  # The previous file is always replaced — no unbounded growth.
+  # What you do with the files is entirely up to you.
+  # - name: payments-api
+  #   url: https://api.example.com/v1/payments
+  #   interval: 5m
+  #   raw: true
+
   # Example: monitor with custom retry settings
   # - name: flaky-api
   #   url: https://flaky.example.com/api
