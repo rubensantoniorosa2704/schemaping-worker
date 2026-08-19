@@ -6,7 +6,17 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
+// JSONSchema implements domain.DiffStrategy for generic JSON API responses.
+// It compares the parsed Body (map[string]any) between two snapshots.
+type JSONSchema struct{}
+
+// Diff returns the list of structural changes between two snapshots.
+func (s JSONSchema) Diff(before, after domain.Snapshot) []domain.DiffResult {
+	return Compare(before, after)
+}
+
 // Compare returns the list of structural changes between two snapshots.
+// Kept as a package-level function for backward compatibility.
 func Compare(before, after domain.Snapshot) []domain.DiffResult {
 	var results []domain.DiffResult
 

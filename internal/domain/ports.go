@@ -28,3 +28,10 @@ type RawStore interface {
 	// The capturedAt timestamp is embedded in the filename for identification.
 	Save(monitorName string, capturedAt time.Time, data []byte) error
 }
+
+// DiffStrategy is the port for comparing two snapshots and producing a list of changes.
+// Each monitor type has its own implementation (JSON schema diff, OpenAPI diff, etc.).
+type DiffStrategy interface {
+	// Diff compares the previous and current snapshots and returns detected changes.
+	Diff(prev, curr Snapshot) []DiffResult
+}

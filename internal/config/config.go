@@ -51,6 +51,12 @@ func Load(path string) (Config, error) {
 		if m.Method == "" {
 			m.Method = "GET"
 		}
+		if m.Type == "" {
+			m.Type = domain.MonitorTypeHTTP
+		}
+		if m.Type != domain.MonitorTypeHTTP && m.Type != domain.MonitorTypeOpenAPI {
+			return Config{}, fmt.Errorf("config: monitor %q: invalid type %q (must be \"http\" or \"openapi\")", m.Name, m.Type)
+		}
 		if m.ExpectedStatus == 0 {
 			m.ExpectedStatus = 200
 		}

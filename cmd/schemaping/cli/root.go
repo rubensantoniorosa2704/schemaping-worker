@@ -184,6 +184,16 @@ func resolveNotifiers(m domain.Monitor, global []notifier.Notifier, cfg config.C
 	return buildNotifiers(m.Webhooks)
 }
 
+// resolveDiffStrategy returns the appropriate DiffStrategy for the monitor's type.
+func resolveDiffStrategy(m domain.Monitor) domain.DiffStrategy {
+	switch m.Type {
+	case domain.MonitorTypeOpenAPI:
+		return diff.OpenAPI{}
+	default:
+		return diff.JSONSchema{}
+	}
+}
+
 // checkResult holds the outcome of a single monitor check.
 type checkResult struct {
 	prefix  string
@@ -226,7 +236,7 @@ func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, stor
 		snap:    snap,
 		prev:    prev,
 		hasPrev: hasPrev,
-		diffs:   diff.Compare(prev, snap),
+		diffs:   resolveDiffStrategy(m).Diff(prev, snap),
 	}
 }
 

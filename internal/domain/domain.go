@@ -12,6 +12,18 @@ type WebhookConfig struct {
 	ChatID string `yaml:"chat_id"` // required for Telegram
 }
 
+// MonitorType identifies what kind of content the monitor is tracking.
+type MonitorType string
+
+const (
+	// MonitorTypeHTTP is the default type: monitors a JSON API endpoint and
+	// compares response structure over time.
+	MonitorTypeHTTP MonitorType = "http"
+	// MonitorTypeOpenAPI monitors an OpenAPI 3.0 specification file and
+	// detects structural drift in paths, schemas, and parameters.
+	MonitorTypeOpenAPI MonitorType = "openapi"
+)
+
 // Monitor represents a configured endpoint to be monitored.
 type Monitor struct {
 	Name           string            `yaml:"name"`
@@ -21,6 +33,8 @@ type Monitor struct {
 	Timeout        time.Duration     `yaml:"timeout"`
 	ExpectedStatus int               `yaml:"expected_status"`
 	Headers        map[string]string `yaml:"headers"`
+	// Type determines the comparison strategy: "http" (default) or "openapi".
+	Type MonitorType `yaml:"type"`
 	// Webhooks overrides the global webhook list for this monitor.
 	// If nil, global webhooks are used. If empty slice, notifications are silenced.
 	Webhooks []WebhookConfig `yaml:"webhooks"`

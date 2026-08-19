@@ -12,6 +12,8 @@ SchemaPing monitors HTTP JSON endpoints, compares response structures over time,
 
 ## What it detects
 
+### JSON API monitors (`type: http`, default)
+
 - Added or removed fields
 - Type changes (`string` → `number`, etc.)
 - Nullability changes
@@ -19,6 +21,19 @@ SchemaPing monitors HTTP JSON endpoints, compares response structures over time,
 - Request failures and timeouts
 
 > **Array diffing limitation:** arrays are compared using only their first element as a schema representative. Heterogeneous arrays, nested arrays, and length changes are not reported.
+
+### OpenAPI 3.0 monitors (`type: openapi`)
+
+- Added or removed paths
+- Added or removed operations (HTTP methods)
+- Added or removed parameters (query, path, header, cookie)
+- Parameter required/type changes
+- Added or removed response codes
+- Inline schema property additions, removals, and type changes
+- Request body additions/removals and content type changes
+- Spec version (`info.version`) changes
+
+> **`$ref` limitation:** references (`$ref`) are NOT resolved. Only inline schema definitions are compared. If your spec uses `$ref` extensively, changes inside referenced components will not be detected.
 
 ---
 
@@ -67,6 +82,12 @@ monitors:
     headers:
       Authorization: Bearer ${API_TOKEN}
 
+  - name: payments-spec
+    url: https://api.example.com/v1/openapi.yaml
+    type: openapi
+    interval: 10m
+    raw: true
+
 webhooks:
   - type: discord
     url: ${DISCORD_WEBHOOK_URL}
@@ -76,6 +97,7 @@ webhooks:
 |---|---|---|
 | `name` | required | Unique monitor identifier |
 | `url` | required | Endpoint to monitor |
+| `type` | `http` | Monitor type: `http` (JSON API diff) or `openapi` (OpenAPI 3.0 spec diff) |
 | `method` | `GET` | HTTP method |
 | `interval` | `1m` | How often to check |
 | `timeout` | `10s` | Request timeout |
@@ -221,7 +243,7 @@ SchemaPing does not ship adapters for external storage targets (S3, Postgres, me
 - [x] Webhook alerts (Discord, Telegram)
 - [x] Retry with exponential backoff
 - [x] Raw response storage (opt-in, per-monitor)
-- [ ] OpenAPI diff support (3.0)
+- [x] OpenAPI diff support (3.0)
 - [ ] Snapshot history
 
 ---

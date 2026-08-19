@@ -9,6 +9,15 @@ monitors:
     url: https://httpbin.org/json
     interval: 5m
 
+  # Example: monitor an OpenAPI 3.0 spec for structural drift.
+  # Detects added/removed paths, operations, parameters, response codes,
+  # and inline schema changes. $ref references are NOT resolved.
+  # - name: petstore-spec
+  #   url: https://petstore3.swagger.io/api/v3/openapi.json
+  #   type: openapi
+  #   interval: 10m
+  #   raw: true
+
   # Example: save the raw response body to disk after each successful check.
   # Useful for auditing, debugging, or feeding into your own pipeline.
   # Files are written to ~/.schemaping/raw/<monitor-name>/<monitor-name>-<timestamp>.json

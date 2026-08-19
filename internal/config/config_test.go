@@ -419,3 +419,52 @@ monitors:
 		t.Error("Raw should be true when explicitly set")
 	}
 }
+
+func TestLoad_TypeDefaultsHTTP(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Monitors[0].Type != "http" {
+		t.Errorf("Type should default to http, got %q", cfg.Monitors[0].Type)
+	}
+}
+
+func TestLoad_TypeOpenAPI(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: spec
+    url: https://example.com/openapi.yaml
+    type: openapi
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Monitors[0].Type != "openapi" {
+		t.Errorf("Type should be openapi, got %q", cfg.Monitors[0].Type)
+	}
+}
+
+func TestLoad_TypeInvalid(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+    type: graphql
+`)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid type, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid type") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
