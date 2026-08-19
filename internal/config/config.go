@@ -13,12 +13,14 @@ import (
 type file struct {
 	Monitors []domain.Monitor       `yaml:"monitors"`
 	Webhooks []domain.WebhookConfig `yaml:"webhooks"`
+	Report   *domain.ReportConfig   `yaml:"report"`
 }
 
 // Config holds the fully-loaded and validated configuration.
 type Config struct {
 	Monitors []domain.Monitor
 	Webhooks []domain.WebhookConfig
+	Report   *domain.ReportConfig
 }
 
 // Load reads a YAML config file, expands ${ENV_VAR} references, and returns
@@ -77,5 +79,5 @@ func Load(path string) (Config, error) {
 		}
 	}
 
-	return Config{Monitors: f.Monitors, Webhooks: f.Webhooks}, nil
+	return Config{Monitors: f.Monitors, Webhooks: f.Webhooks, Report: f.Report}, nil
 }

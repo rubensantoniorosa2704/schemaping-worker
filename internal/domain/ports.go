@@ -38,3 +38,11 @@ type DiffStrategy interface {
 	// Diff compares the previous and current snapshots and returns detected changes.
 	Diff(prev, curr Snapshot) []DiffResult
 }
+
+// Reporter is the port for sending check results to an external endpoint.
+// Implementations are fire-and-forget: errors are logged but never block the check loop.
+type Reporter interface {
+	// Report sends the payload to the configured endpoint.
+	// Returns an error if the request failed (for logging purposes only).
+	Report(payload ReportPayload) error
+}

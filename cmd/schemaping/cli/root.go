@@ -12,6 +12,7 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/diff"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 	infrahttp "github.com/rubensantoniorosa2704/schemaping-worker/internal/infra/http"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/infra/reporter"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/infra/storage"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 )
@@ -135,6 +136,12 @@ func Execute() {
 	specStore := storage.NewSpecStore()
 	rawStore := storage.NewRawStore()
 
+	// Reporter is optional — only created when report.url is configured.
+	var rep domain.Reporter
+	if cfg.Report != nil && cfg.Report.URL != "" {
+		rep = reporter.New(*cfg.Report)
+	}
+
 	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
 	for _, m := range cfg.Monitors {
 		captured := m
@@ -156,9 +163,9 @@ func Execute() {
 
 	switch cmd {
 	case "check":
-		runCheck(cfg, checkers, globalNotifiers, stores)
+		runCheck(cfg, checkers, globalNotifiers, stores, rep)
 	case "run":
-		runRun(cfg, checkers, globalNotifiers, stores)
+		runRun(cfg, checkers, globalNotifiers, stores, rep)
 	case "test-webhooks":
 		runTestWebhooks(globalNotifiers)
 	}
@@ -304,11 +311,34 @@ func printResult(r checkResult) {
 }
 
 // executeAndPrint runs a check, prints the result, and fires webhooks if a change is detected.
-func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, stores *storeSet) {
+func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, stores *storeSet, rep domain.Reporter) {
 	r := executeCheck(c, m, showTimestamp, stores)
 	printResult(r)
 
 	if r.hasPrev && len(r.diffs) > 0 {
 		notifier.NotifyAll(notifiers, m.Name, r.diffs)
+	}
+
+	// Send report if configured (fire-and-forget).
+	if rep != nil {
+		status := "ok"
+		if r.snap.Error != "" {
+			status = "error"
+		} else if len(r.diffs) > 0 {
+			status = "drift"
+		}
+		payload := domain.ReportPayload{
+			MonitorName: m.Name,
+			MonitorType: m.Type,
+			Status:      status,
+			Diffs:       r.diffs,
+			Error:       r.snap.Error,
+			CapturedAt:  r.snap.CapturedAt,
+		}
+		if err := rep.Report(payload); err != nil {
+			printMu.Lock()
+			fmt.Fprintf(os.Stderr, "%s report: %s\n", r.prefix, err)
+			printMu.Unlock()
+		}
 	}
 }

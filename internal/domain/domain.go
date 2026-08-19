@@ -86,3 +86,20 @@ type DiffResult struct {
 	Before string     `json:"before"`
 	After  string     `json:"after"`
 }
+
+// ReportConfig holds the optional configuration for sending check results
+// to an external endpoint (e.g. SchemaPing Cloud or any HTTP receiver).
+type ReportConfig struct {
+	URL    string `yaml:"url"`
+	APIKey string `yaml:"api_key"`
+}
+
+// ReportPayload is the data sent to the report endpoint after a check.
+type ReportPayload struct {
+	MonitorName string       `json:"monitor_name"`
+	MonitorType MonitorType  `json:"monitor_type"`
+	Status      string       `json:"status"` // "ok", "drift", "error"
+	Diffs       []DiffResult `json:"diffs,omitempty"`
+	Error       string       `json:"error,omitempty"`
+	CapturedAt  time.Time    `json:"captured_at"`
+}
