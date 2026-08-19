@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // startDiscordServer starts a fake Discord webhook server.
@@ -43,11 +43,11 @@ func TestDiscord_Notify_Success(t *testing.T) {
 	})
 	defer srv.Close()
 
-	diffs := []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "customer.phone", After: "string"},
-		{Kind: types.ChangeKindRemoved, Path: "customer.document", Before: "string"},
-		{Kind: types.ChangeKindTypeChanged, Path: "amount", Before: "string", After: "number"},
-		{Kind: types.ChangeKindStatusChanged, Path: "status", Before: "200", After: "404"},
+	diffs := []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "customer.phone", After: "string"},
+		{Kind: domain.ChangeKindRemoved, Path: "customer.document", Before: "string"},
+		{Kind: domain.ChangeKindTypeChanged, Path: "amount", Before: "string", After: "number"},
+		{Kind: domain.ChangeKindStatusChanged, Path: "status", Before: "200", After: "404"},
 	}
 
 	d := notifier.NewDiscord(srv.URL)
@@ -89,8 +89,8 @@ func TestDiscord_Notify_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	d := notifier.NewDiscord(srv.URL)
-	err := d.Notify("my-api", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "field", After: "string"},
+	err := d.Notify("my-api", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "field", After: "string"},
 	})
 	if err == nil {
 		t.Fatal("expected error for non-204 response, got nil")
@@ -102,8 +102,8 @@ func TestDiscord_Notify_ServerError(t *testing.T) {
 
 func TestDiscord_Notify_ConnectionRefused(t *testing.T) {
 	d := notifier.NewDiscord("http://127.0.0.1:1") // nothing listening
-	err := d.Notify("my-api", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "field", After: "string"},
+	err := d.Notify("my-api", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "field", After: "string"},
 	})
 	if err == nil {
 		t.Fatal("expected error for connection refused, got nil")
@@ -112,27 +112,27 @@ func TestDiscord_Notify_ConnectionRefused(t *testing.T) {
 
 func TestDiscord_Notify_FieldFormats(t *testing.T) {
 	cases := []struct {
-		diff      types.DiffResult
+		diff      domain.DiffResult
 		wantTitle string
 		wantValue string
 	}{
 		{
-			diff:      types.DiffResult{Kind: types.ChangeKindAdded, Path: "foo", After: "string"},
+			diff:      domain.DiffResult{Kind: domain.ChangeKindAdded, Path: "foo", After: "string"},
 			wantTitle: "foo",
 			wantValue: "after",
 		},
 		{
-			diff:      types.DiffResult{Kind: types.ChangeKindRemoved, Path: "bar", Before: "number"},
+			diff:      domain.DiffResult{Kind: domain.ChangeKindRemoved, Path: "bar", Before: "number"},
 			wantTitle: "bar",
 			wantValue: "before",
 		},
 		{
-			diff:      types.DiffResult{Kind: types.ChangeKindTypeChanged, Path: "baz", Before: "string", After: "number"},
+			diff:      domain.DiffResult{Kind: domain.ChangeKindTypeChanged, Path: "baz", Before: "string", After: "number"},
 			wantTitle: "baz",
 			wantValue: "before",
 		},
 		{
-			diff:      types.DiffResult{Kind: types.ChangeKindStatusChanged, Path: "status", Before: "200", After: "500"},
+			diff:      domain.DiffResult{Kind: domain.ChangeKindStatusChanged, Path: "status", Before: "200", After: "500"},
 			wantTitle: "status",
 			wantValue: "200",
 		},
@@ -145,7 +145,7 @@ func TestDiscord_Notify_FieldFormats(t *testing.T) {
 		})
 
 		d := notifier.NewDiscord(srv.URL)
-		if err := d.Notify("test", []types.DiffResult{tc.diff}); err != nil {
+		if err := d.Notify("test", []domain.DiffResult{tc.diff}); err != nil {
 			t.Errorf("diff %v: unexpected error: %v", tc.diff.Kind, err)
 			srv.Close()
 			continue

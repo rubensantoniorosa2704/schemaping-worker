@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // discordColor maps change kinds to Discord embed sidebar colors (decimal RGB).
@@ -44,13 +44,13 @@ type discordField struct {
 
 // Test sends a test message to verify the webhook is reachable and correctly configured.
 func (d *Discord) Test() error {
-	return d.Notify("schemaping-test", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "example.field", After: "string"},
+	return d.Notify("schemaping-test", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "example.field", After: "string"},
 	})
 }
 
 // Notify posts a Discord embed listing all detected diffs for the monitor.
-func (d *Discord) Notify(monitorName string, diffs []types.DiffResult) error {
+func (d *Discord) Notify(monitorName string, diffs []domain.DiffResult) error {
 	fields := make([]discordField, 0, len(diffs))
 	for _, diff := range diffs {
 		fields = append(fields, discordField{
@@ -85,24 +85,24 @@ func (d *Discord) Notify(monitorName string, diffs []types.DiffResult) error {
 	return nil
 }
 
-func formatDiffTitle(d types.DiffResult) string {
+func formatDiffTitle(d domain.DiffResult) string {
 	switch d.Kind {
-	case types.ChangeKindAdded:
+	case domain.ChangeKindAdded:
 		return fmt.Sprintf("➕ `%s` added", d.Path)
-	case types.ChangeKindRemoved:
+	case domain.ChangeKindRemoved:
 		return fmt.Sprintf("➖ `%s` removed", d.Path)
-	case types.ChangeKindTypeChanged:
+	case domain.ChangeKindTypeChanged:
 		return fmt.Sprintf("🔄 `%s` type changed", d.Path)
-	case types.ChangeKindNullabilityChanged:
+	case domain.ChangeKindNullabilityChanged:
 		return fmt.Sprintf("🔄 `%s` nullability changed", d.Path)
-	case types.ChangeKindStatusChanged:
+	case domain.ChangeKindStatusChanged:
 		return "🔄 HTTP status changed"
 	default:
 		return fmt.Sprintf("`%s` changed", d.Path)
 	}
 }
 
-func formatDiffValue(d types.DiffResult) string {
+func formatDiffValue(d domain.DiffResult) string {
 	var parts []string
 	if d.Before != "" {
 		parts = append(parts, fmt.Sprintf("before: `%s`", d.Before))

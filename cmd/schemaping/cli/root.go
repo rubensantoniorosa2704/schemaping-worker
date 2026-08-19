@@ -10,9 +10,10 @@ import (
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/checker"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/config"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/diff"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
+	infrahttp "github.com/rubensantoniorosa2704/schemaping-worker/internal/infra/http"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/infra/storage"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
-	filestore "github.com/rubensantoniorosa2704/schemaping-worker/internal/storage/file"
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
 )
 
 // Version is set at build time via -ldflags.
@@ -130,11 +131,13 @@ func Execute() {
 	}
 
 	globalNotifiers := buildNotifiers(cfg.Webhooks)
+	store := storage.New()
 
 	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
 	for _, m := range cfg.Monitors {
 		captured := m
-		checkers[m.Name] = checker.New(m, func(e checker.RetryEvent) {
+		fetcher := infrahttp.New(m)
+		checkers[m.Name] = checker.New(m, fetcher, func(e checker.RetryEvent) {
 			printMu.Lock()
 			defer printMu.Unlock()
 			fmt.Fprintf(os.Stderr, "%s[%s]%s retrying (attempt %d/%d, reason: %s, next in %s)\n",
@@ -145,9 +148,9 @@ func Execute() {
 
 	switch cmd {
 	case "check":
-		runCheck(cfg, checkers, globalNotifiers)
+		runCheck(cfg, checkers, globalNotifiers, store)
 	case "run":
-		runRun(cfg, checkers, globalNotifiers)
+		runRun(cfg, checkers, globalNotifiers, store)
 	case "test-webhooks":
 		runTestWebhooks(globalNotifiers)
 	}
@@ -155,7 +158,7 @@ func Execute() {
 
 // buildNotifiers constructs a list of Notifier instances from webhook configs.
 // Unknown types are logged and skipped.
-func buildNotifiers(cfgs []types.WebhookConfig) []notifier.Notifier {
+func buildNotifiers(cfgs []domain.WebhookConfig) []notifier.Notifier {
 	var result []notifier.Notifier
 	for _, wh := range cfgs {
 		switch wh.Type {
@@ -173,7 +176,7 @@ func buildNotifiers(cfgs []types.WebhookConfig) []notifier.Notifier {
 // resolveNotifiers returns the notifiers for a given monitor.
 // If the monitor defines its own webhooks list, that overrides the global one.
 // An explicit empty list on the monitor silences all notifications.
-func resolveNotifiers(m types.Monitor, global []notifier.Notifier, cfg config.Config) []notifier.Notifier {
+func resolveNotifiers(m domain.Monitor, global []notifier.Notifier, cfg config.Config) []notifier.Notifier {
 	if m.Webhooks == nil {
 		return global
 	}
@@ -183,14 +186,14 @@ func resolveNotifiers(m types.Monitor, global []notifier.Notifier, cfg config.Co
 // checkResult holds the outcome of a single monitor check.
 type checkResult struct {
 	prefix  string
-	snap    types.Snapshot
-	prev    types.Snapshot
+	snap    domain.Snapshot
+	prev    domain.Snapshot
 	hasPrev bool
-	diffs   []types.DiffResult
+	diffs   []domain.DiffResult
 }
 
 // executeCheck runs a monitor check, persists the snapshot on success, and returns the result.
-func executeCheck(c *checker.Checker, m types.Monitor, showTimestamp bool) checkResult {
+func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, store domain.Store) checkResult {
 	prefix := fmt.Sprintf("[%s]", m.Name)
 	if showTimestamp {
 		prefix = fmt.Sprintf("%s [%s]", time.Now().Format("15:04:05"), m.Name)
@@ -198,14 +201,14 @@ func executeCheck(c *checker.Checker, m types.Monitor, showTimestamp bool) check
 
 	snap := c.Run()
 
-	prev, err := filestore.Load(m.Name)
+	prev, err := store.Load(m.Name)
 	hasPrev := err == nil
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		fmt.Fprintf(os.Stderr, "%s storage error: %s\n", prefix, err)
 	}
 
 	if snap.Error == "" {
-		if saveErr := filestore.Save(snap); saveErr != nil {
+		if saveErr := store.Save(snap); saveErr != nil {
 			fmt.Fprintf(os.Stderr, "%s save error: %s\n", prefix, saveErr)
 		}
 	}
@@ -242,23 +245,23 @@ func printResult(r checkResult) {
 	fmt.Printf("%s%s%s change detected\n", colorYellow+colorBold, r.prefix, colorReset)
 	for _, d := range r.diffs {
 		switch d.Kind {
-		case types.ChangeKindAdded:
+		case domain.ChangeKindAdded:
 			fmt.Printf("  %s+ %s added (%s)%s\n", colorGreen, d.Path, d.After, colorReset)
-		case types.ChangeKindRemoved:
+		case domain.ChangeKindRemoved:
 			fmt.Printf("  %s- %s removed (%s)%s\n", colorRed, d.Path, d.Before, colorReset)
-		case types.ChangeKindTypeChanged:
+		case domain.ChangeKindTypeChanged:
 			fmt.Printf("  %s~ %s changed: %s -> %s%s\n", colorYellow, d.Path, d.Before, d.After, colorReset)
-		case types.ChangeKindNullabilityChanged:
+		case domain.ChangeKindNullabilityChanged:
 			fmt.Printf("  %s~ %s nullability changed: %s -> %s%s\n", colorYellow, d.Path, d.Before, d.After, colorReset)
-		case types.ChangeKindStatusChanged:
+		case domain.ChangeKindStatusChanged:
 			fmt.Printf("  %s~ status changed: %s -> %s%s\n", colorYellow, d.Before, d.After, colorReset)
 		}
 	}
 }
 
 // executeAndPrint runs a check, prints the result, and fires webhooks if a change is detected.
-func executeAndPrint(c *checker.Checker, m types.Monitor, showTimestamp bool, notifiers []notifier.Notifier) {
-	r := executeCheck(c, m, showTimestamp)
+func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, store domain.Store) {
+	r := executeCheck(c, m, showTimestamp, store)
 	printResult(r)
 
 	if r.hasPrev && len(r.diffs) > 0 {

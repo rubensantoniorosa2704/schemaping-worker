@@ -2,17 +2,16 @@ package checker
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 	"time"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // monitorWithRetries builds a Monitor pre-configured with retry settings so
 // tests don't depend on config.Load defaults.
-func monitorWithRetries(retries int, backoff time.Duration) types.Monitor {
-	return types.Monitor{
+func monitorWithRetries(retries int, backoff time.Duration) domain.Monitor {
+	return domain.Monitor{
 		Name:           "test-monitor",
 		URL:            "https://example.com",
 		Method:         "GET",
@@ -23,23 +22,36 @@ func monitorWithRetries(retries int, backoff time.Duration) types.Monitor {
 	}
 }
 
-// stubResponse represents a single canned HTTP response or transport error.
-type stubResponse struct {
-	statusCode int
-	body       []byte
-	err        error
+// stubFetcher is a domain.Fetcher that replays a sequence of canned Snapshots.
+type stubFetcher struct {
+	responses []domain.Snapshot
+	call      int
 }
 
-// stubSequence returns a doRequest func that replays responses in order.
-// When exhausted, the last entry repeats.
-func stubSequence(responses []stubResponse) func(*http.Client, types.Monitor) (int, []byte, error) {
-	call := 0
-	return func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		r := responses[call]
-		if call < len(responses)-1 {
-			call++
-		}
-		return r.statusCode, r.body, r.err
+func (s *stubFetcher) Fetch(_ domain.Monitor) domain.Snapshot {
+	snap := s.responses[s.call]
+	if s.call < len(s.responses)-1 {
+		s.call++
+	}
+	return snap
+}
+
+// snapOK returns a successful Snapshot.
+func snapOK() domain.Snapshot {
+	return domain.Snapshot{StatusCode: 200, Body: map[string]any{"ok": true}}
+}
+
+// snapTransportErr returns a Snapshot representing a transport-level failure.
+func snapTransportErr(msg string) domain.Snapshot {
+	err := errors.New(msg)
+	return domain.Snapshot{Error: msg, TransportErr: err}
+}
+
+// snapStatus returns a Snapshot with a non-success status (non-retryable unless 5xx/429).
+func snapStatus(code int) domain.Snapshot {
+	return domain.Snapshot{
+		StatusCode: code,
+		Error:      "unexpected status",
 	}
 }
 
@@ -47,10 +59,8 @@ func stubSequence(responses []stubResponse) func(*http.Client, types.Monitor) (i
 
 func TestRun_SuccessOnFirstAttempt(t *testing.T) {
 	m := monitorWithRetries(3, 0)
-	c := New(m, nil)
-	c.doRequest = stubSequence([]stubResponse{
-		{statusCode: 200, body: []byte(`{"ok":true}`)},
-	})
+	f := &stubFetcher{responses: []domain.Snapshot{snapOK()}}
+	c := New(m, f, nil)
 
 	snap := c.Run()
 	if snap.Error != "" {
@@ -64,14 +74,14 @@ func TestRun_SuccessOnFirstAttempt(t *testing.T) {
 // --- retries on transport error then succeeds ---
 
 func TestRun_RetriesOnTransportError_ThenSucceeds(t *testing.T) {
-	m := monitorWithRetries(3, 0) // zero backoff so tests don't sleep
+	m := monitorWithRetries(3, 0)
 	var events []RetryEvent
-	c := New(m, func(e RetryEvent) { events = append(events, e) })
-	c.doRequest = stubSequence([]stubResponse{
-		{err: errors.New("connection refused")},
-		{err: errors.New("connection refused")},
-		{statusCode: 200, body: []byte(`{"ok":true}`)},
-	})
+	f := &stubFetcher{responses: []domain.Snapshot{
+		snapTransportErr("connection refused"),
+		snapTransportErr("connection refused"),
+		snapOK(),
+	}}
+	c := New(m, f, func(e RetryEvent) { events = append(events, e) })
 
 	snap := c.Run()
 	if snap.Error != "" {
@@ -91,10 +101,12 @@ func TestRun_ExhaustsRetries(t *testing.T) {
 	retries := 2
 	m := monitorWithRetries(retries, 0)
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		return 0, nil, errors.New("timeout")
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			return snapTransportErr("timeout")
+		}),
 	}
 
 	snap := c.Run()
@@ -107,22 +119,23 @@ func TestRun_ExhaustsRetries(t *testing.T) {
 	}
 }
 
-// --- non-retryable failure stops immediately (no retry) ---
+// --- non-retryable failure stops immediately ---
 
 func TestRun_NonRetryable_StopsImmediately(t *testing.T) {
 	m := monitorWithRetries(3, 0)
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		return 404, []byte(`not found`), nil
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			return snapStatus(404)
+		}),
 	}
 
 	snap := c.Run()
 	if snap.Error == "" {
 		t.Error("expected error for unexpected status, got none")
 	}
-	// 404 is non-retryable — should stop after exactly 1 attempt
 	if callCount != 1 {
 		t.Errorf("expected 1 attempt for non-retryable failure, got %d", callCount)
 	}
@@ -133,10 +146,12 @@ func TestRun_NonRetryable_StopsImmediately(t *testing.T) {
 func TestRun_ZeroRetries_NoRetry(t *testing.T) {
 	m := monitorWithRetries(0, 0)
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		return 503, nil, nil
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			return snapStatus(503)
+		}),
 	}
 
 	snap := c.Run()
@@ -153,13 +168,15 @@ func TestRun_ZeroRetries_NoRetry(t *testing.T) {
 func TestRun_Status429_IsRetried(t *testing.T) {
 	m := monitorWithRetries(2, 0)
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		if callCount < 3 {
-			return 429, nil, nil
-		}
-		return 200, []byte(`{"ok":true}`), nil
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			if callCount < 3 {
+				return snapStatus(429)
+			}
+			return snapOK()
+		}),
 	}
 
 	snap := c.Run()
@@ -176,13 +193,15 @@ func TestRun_Status429_IsRetried(t *testing.T) {
 func TestRun_Status503_IsRetried(t *testing.T) {
 	m := monitorWithRetries(1, 0)
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		if callCount == 1 {
-			return 503, nil, nil
-		}
-		return 200, []byte(`{"ok":true}`), nil
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			if callCount == 1 {
+				return snapStatus(503)
+			}
+			return snapOK()
+		}),
 	}
 
 	snap := c.Run()
@@ -201,11 +220,11 @@ func TestRun_OnRetryCallback_ReceivesCorrectFields(t *testing.T) {
 	backoff := 5 * time.Millisecond
 	m := monitorWithRetries(retries, backoff)
 	var events []RetryEvent
-	c := New(m, func(e RetryEvent) { events = append(events, e) })
-	c.doRequest = stubSequence([]stubResponse{
-		{err: errors.New("timeout")},
-		{statusCode: 200, body: []byte(`{}`)},
-	})
+	f := &stubFetcher{responses: []domain.Snapshot{
+		snapTransportErr("timeout"),
+		snapOK(),
+	}}
+	c := New(m, f, func(e RetryEvent) { events = append(events, e) })
 
 	snap := c.Run()
 	if snap.Error != "" {
@@ -219,7 +238,6 @@ func TestRun_OnRetryCallback_ReceivesCorrectFields(t *testing.T) {
 		t.Errorf("Attempt: want 1, got %d", e.Attempt)
 	}
 	if e.MaxAttempts != 2 {
-		// retries=1 → maxAttempts=2
 		t.Errorf("MaxAttempts: want 2, got %d", e.MaxAttempts)
 	}
 	if e.NextIn != backoff {
@@ -233,24 +251,30 @@ func TestRun_OnRetryCallback_ReceivesCorrectFields(t *testing.T) {
 // --- nil Retries treated as default 3 retries (4 total attempts) ---
 
 func TestRun_NilRetries_UsesDefault(t *testing.T) {
-	m := types.Monitor{
+	m := domain.Monitor{
 		Name:           "test",
 		URL:            "https://example.com",
 		Method:         "GET",
 		ExpectedStatus: 200,
-		Retries:        nil, // not configured
+		Retries:        nil,
 		RetryBackoff:   0,
 	}
 	callCount := 0
-	c := New(m, nil)
-	c.doRequest = func(_ *http.Client, _ types.Monitor) (int, []byte, error) {
-		callCount++
-		return 500, nil, nil
+	c := &Checker{
+		monitor: m,
+		fetcher: fetcherFunc(func(_ domain.Monitor) domain.Snapshot {
+			callCount++
+			return snapStatus(500)
+		}),
 	}
 
 	c.Run()
-	// nil Retries → default 3 retries → 4 total attempts
 	if callCount != 4 {
 		t.Errorf("nil Retries should result in 4 total attempts, got %d", callCount)
 	}
 }
+
+// fetcherFunc is an adapter to use a plain function as domain.Fetcher.
+type fetcherFunc func(domain.Monitor) domain.Snapshot
+
+func (f fetcherFunc) Fetch(m domain.Monitor) domain.Snapshot { return f(m) }

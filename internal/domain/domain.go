@@ -1,4 +1,6 @@
-package types
+// Package domain contains the core types and port interfaces for SchemaPing.
+// No infrastructure dependencies are allowed in this package.
+package domain
 
 import "time"
 
@@ -24,7 +26,7 @@ type Monitor struct {
 	Webhooks []WebhookConfig `yaml:"webhooks"`
 	// Retries is the number of additional attempts after the first transient failure.
 	// nil means "not configured" and config.Load will apply the default (3).
-	// A pointer to 0 means retries are explicitly disabled — no retry will be performed.
+	// A pointer to 0 means retries are explicitly disabled.
 	Retries *int `yaml:"retries"`
 	// RetryBackoff is the base interval for exponential backoff between attempts.
 	// Zero value means "not configured" and config.Load will apply the default (2s).
@@ -39,6 +41,9 @@ type Snapshot struct {
 	StatusCode  int            `json:"status_code"`
 	Body        map[string]any `json:"body"`
 	Error       string         `json:"error,omitempty"`
+	// TransportErr holds the raw transport error (timeout, connection refused, etc.)
+	// used internally by the retry logic. Not persisted to disk.
+	TransportErr error `json:"-"`
 }
 
 // ChangeKind describes the type of schema change detected.

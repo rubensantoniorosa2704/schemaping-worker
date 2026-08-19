@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // Telegram sends schema-change alerts via the Telegram Bot API sendMessage method.
@@ -33,7 +33,7 @@ type telegramResponse struct {
 }
 
 // Notify sends a message listing all detected diffs for the monitor.
-func (t *Telegram) Notify(monitorName string, diffs []types.DiffResult) error {
+func (t *Telegram) Notify(monitorName string, diffs []domain.DiffResult) error {
 	text := formatTelegramMessage(monitorName, diffs)
 
 	payload, err := json.Marshal(telegramPayload{
@@ -63,12 +63,12 @@ func (t *Telegram) Notify(monitorName string, diffs []types.DiffResult) error {
 
 // Test sends a test message to verify the bot and chat ID are correctly configured.
 func (t *Telegram) Test() error {
-	return t.Notify("schemaping-test", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "example.field", After: "string"},
+	return t.Notify("schemaping-test", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "example.field", After: "string"},
 	})
 }
 
-func formatTelegramMessage(monitorName string, diffs []types.DiffResult) string {
+func formatTelegramMessage(monitorName string, diffs []domain.DiffResult) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "⚠️ <b>Schema change detected: %s</b>\n", monitorName)
 	fmt.Fprintf(&b, "%d change(s):\n\n", len(diffs))
@@ -79,17 +79,17 @@ func formatTelegramMessage(monitorName string, diffs []types.DiffResult) string 
 	return b.String()
 }
 
-func formatTelegramDiff(d types.DiffResult) string {
+func formatTelegramDiff(d domain.DiffResult) string {
 	switch d.Kind {
-	case types.ChangeKindAdded:
+	case domain.ChangeKindAdded:
 		return fmt.Sprintf("➕ <code>%s</code> added (<i>%s</i>)", d.Path, d.After)
-	case types.ChangeKindRemoved:
+	case domain.ChangeKindRemoved:
 		return fmt.Sprintf("➖ <code>%s</code> removed (<i>%s</i>)", d.Path, d.Before)
-	case types.ChangeKindTypeChanged:
+	case domain.ChangeKindTypeChanged:
 		return fmt.Sprintf("🔄 <code>%s</code> type changed: <i>%s</i> → <i>%s</i>", d.Path, d.Before, d.After)
-	case types.ChangeKindNullabilityChanged:
+	case domain.ChangeKindNullabilityChanged:
 		return fmt.Sprintf("🔄 <code>%s</code> nullability changed: <i>%s</i> → <i>%s</i>", d.Path, d.Before, d.After)
-	case types.ChangeKindStatusChanged:
+	case domain.ChangeKindStatusChanged:
 		return fmt.Sprintf("🔄 HTTP status changed: <i>%s</i> → <i>%s</i>", d.Before, d.After)
 	default:
 		return fmt.Sprintf("<code>%s</code> changed", d.Path)

@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // Run fires fn(m) immediately for each monitor, then on each monitor's interval.
 // Blocks until SIGINT or SIGTERM is received.
-func Run(monitors []types.Monitor, fn func(types.Monitor)) {
+func Run(monitors []domain.Monitor, fn func(domain.Monitor)) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -22,7 +22,7 @@ func Run(monitors []types.Monitor, fn func(types.Monitor)) {
 	for i, m := range monitors {
 		stops[i] = make(chan struct{})
 		wg.Add(1)
-		go func(m types.Monitor, stop chan struct{}) {
+		go func(m domain.Monitor, stop chan struct{}) {
 			defer wg.Done()
 			fn(m)
 			ticker := time.NewTicker(m.Interval)

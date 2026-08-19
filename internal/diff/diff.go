@@ -3,16 +3,16 @@ package diff
 import (
 	"fmt"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // Compare returns the list of structural changes between two snapshots.
-func Compare(before, after types.Snapshot) []types.DiffResult {
-	var results []types.DiffResult
+func Compare(before, after domain.Snapshot) []domain.DiffResult {
+	var results []domain.DiffResult
 
 	if before.StatusCode != after.StatusCode {
-		results = append(results, types.DiffResult{
-			Kind:   types.ChangeKindStatusChanged,
+		results = append(results, domain.DiffResult{
+			Kind:   domain.ChangeKindStatusChanged,
 			Path:   "status",
 			Before: fmt.Sprintf("%d", before.StatusCode),
 			After:  fmt.Sprintf("%d", after.StatusCode),
@@ -23,15 +23,15 @@ func Compare(before, after types.Snapshot) []types.DiffResult {
 	return results
 }
 
-func diffObjects(before, after map[string]any, prefix string) []types.DiffResult {
-	var results []types.DiffResult
+func diffObjects(before, after map[string]any, prefix string) []domain.DiffResult {
+	var results []domain.DiffResult
 
 	for key, bVal := range before {
 		path := joinPath(prefix, key)
 		aVal, exists := after[key]
 		if !exists {
-			results = append(results, types.DiffResult{
-				Kind:   types.ChangeKindRemoved,
+			results = append(results, domain.DiffResult{
+				Kind:   domain.ChangeKindRemoved,
 				Path:   path,
 				Before: typeName(bVal),
 			})
@@ -43,8 +43,8 @@ func diffObjects(before, after map[string]any, prefix string) []types.DiffResult
 	for key, aVal := range after {
 		path := joinPath(prefix, key)
 		if _, exists := before[key]; !exists {
-			results = append(results, types.DiffResult{
-				Kind:  types.ChangeKindAdded,
+			results = append(results, domain.DiffResult{
+				Kind:  domain.ChangeKindAdded,
 				Path:  path,
 				After: typeName(aVal),
 			})
@@ -54,11 +54,11 @@ func diffObjects(before, after map[string]any, prefix string) []types.DiffResult
 	return results
 }
 
-func compareValues(path string, before, after any) []types.DiffResult {
+func compareValues(path string, before, after any) []domain.DiffResult {
 	// nullability change: one side is nil, the other is not (same structural type otherwise)
 	if (before == nil) != (after == nil) {
-		return []types.DiffResult{{
-			Kind:   types.ChangeKindNullabilityChanged,
+		return []domain.DiffResult{{
+			Kind:   domain.ChangeKindNullabilityChanged,
 			Path:   path,
 			Before: typeName(before),
 			After:  typeName(after),
@@ -68,8 +68,8 @@ func compareValues(path string, before, after any) []types.DiffResult {
 	bName, aName := typeName(before), typeName(after)
 
 	if bName != aName {
-		return []types.DiffResult{{
-			Kind:   types.ChangeKindTypeChanged,
+		return []domain.DiffResult{{
+			Kind:   domain.ChangeKindTypeChanged,
 			Path:   path,
 			Before: bName,
 			After:  aName,
@@ -99,7 +99,7 @@ func compareValues(path string, before, after any) []types.DiffResult {
 //     level; only the element type is compared.
 //   - Changes in array length are not reported; only structural/type changes
 //     in the element schema are detected.
-func diffArrays(path string, before, after []any) []types.DiffResult {
+func diffArrays(path string, before, after []any) []domain.DiffResult {
 	bEmpty, aEmpty := len(before) == 0, len(after) == 0
 
 	if bEmpty && aEmpty {
@@ -108,8 +108,8 @@ func diffArrays(path string, before, after []any) []types.DiffResult {
 
 	if bEmpty != aEmpty {
 		bDesc, aDesc := arrayDesc(before), arrayDesc(after)
-		return []types.DiffResult{{
-			Kind:   types.ChangeKindTypeChanged,
+		return []domain.DiffResult{{
+			Kind:   domain.ChangeKindTypeChanged,
 			Path:   path,
 			Before: bDesc,
 			After:  aDesc,
@@ -122,8 +122,8 @@ func diffArrays(path string, before, after []any) []types.DiffResult {
 
 	// element type changed
 	if bName != aName {
-		return []types.DiffResult{{
-			Kind:   types.ChangeKindTypeChanged,
+		return []domain.DiffResult{{
+			Kind:   domain.ChangeKindTypeChanged,
 			Path:   path + "[]",
 			Before: bName,
 			After:  aName,

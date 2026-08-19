@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // Notifier sends a schema-change alert for a given monitor.
 type Notifier interface {
-	Notify(monitorName string, diffs []types.DiffResult) error
+	Notify(monitorName string, diffs []domain.DiffResult) error
 }
 
 // Tester is implemented by notifiers that support sending a test message
@@ -28,7 +28,7 @@ func ExpandEnv(s string) string {
 
 // NotifyAll dispatches the alert to every notifier, printing errors to stderr
 // without stopping the remaining ones.
-func NotifyAll(notifiers []Notifier, monitorName string, diffs []types.DiffResult) {
+func NotifyAll(notifiers []Notifier, monitorName string, diffs []domain.DiffResult) {
 	for _, n := range notifiers {
 		if err := n.Notify(monitorName, diffs); err != nil {
 			fmt.Fprintf(os.Stderr, "[notifier] %s: %s\n", monitorName, err)

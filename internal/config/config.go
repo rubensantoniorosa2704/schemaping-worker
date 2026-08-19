@@ -7,18 +7,18 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 type file struct {
-	Monitors []types.Monitor       `yaml:"monitors"`
-	Webhooks []types.WebhookConfig `yaml:"webhooks"`
+	Monitors []domain.Monitor       `yaml:"monitors"`
+	Webhooks []domain.WebhookConfig `yaml:"webhooks"`
 }
 
 // Config holds the fully-loaded and validated configuration.
 type Config struct {
-	Monitors []types.Monitor
-	Webhooks []types.WebhookConfig
+	Monitors []domain.Monitor
+	Webhooks []domain.WebhookConfig
 }
 
 // Load reads a YAML config file, expands ${ENV_VAR} references, and returns

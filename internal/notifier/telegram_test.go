@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
-	"github.com/rubensantoniorosa2704/schemaping-worker/pkg/types"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
 )
 
 // startTelegramServer starts a fake Telegram Bot API server.
@@ -49,11 +49,11 @@ func TestTelegram_Notify_Success(t *testing.T) {
 	})
 	defer srv.Close()
 
-	diffs := []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "customer.phone", After: "string"},
-		{Kind: types.ChangeKindRemoved, Path: "customer.document", Before: "string"},
-		{Kind: types.ChangeKindTypeChanged, Path: "amount", Before: "string", After: "number"},
-		{Kind: types.ChangeKindStatusChanged, Path: "status", Before: "200", After: "404"},
+	diffs := []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "customer.phone", After: "string"},
+		{Kind: domain.ChangeKindRemoved, Path: "customer.document", Before: "string"},
+		{Kind: domain.ChangeKindTypeChanged, Path: "amount", Before: "string", After: "number"},
+		{Kind: domain.ChangeKindStatusChanged, Path: "status", Before: "200", After: "404"},
 	}
 
 	tg := notifier.NewTelegram(srv.URL, "123456")
@@ -88,8 +88,8 @@ func TestTelegram_Notify_APIReturnsFalse(t *testing.T) {
 	defer srv.Close()
 
 	tg := notifier.NewTelegram(srv.URL, "123456")
-	err := tg.Notify("my-api", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "field", After: "string"},
+	err := tg.Notify("my-api", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "field", After: "string"},
 	})
 	if err == nil {
 		t.Fatal("expected error when ok=false, got nil")
@@ -101,8 +101,8 @@ func TestTelegram_Notify_APIReturnsFalse(t *testing.T) {
 
 func TestTelegram_Notify_ConnectionRefused(t *testing.T) {
 	tg := notifier.NewTelegram("http://127.0.0.1:1", "123456")
-	err := tg.Notify("my-api", []types.DiffResult{
-		{Kind: types.ChangeKindAdded, Path: "field", After: "string"},
+	err := tg.Notify("my-api", []domain.DiffResult{
+		{Kind: domain.ChangeKindAdded, Path: "field", After: "string"},
 	})
 	if err == nil {
 		t.Fatal("expected error for connection refused, got nil")
@@ -111,23 +111,23 @@ func TestTelegram_Notify_ConnectionRefused(t *testing.T) {
 
 func TestTelegram_Notify_MessageFormats(t *testing.T) {
 	cases := []struct {
-		diff     types.DiffResult
+		diff     domain.DiffResult
 		wantText string
 	}{
 		{
-			diff:     types.DiffResult{Kind: types.ChangeKindAdded, Path: "foo", After: "string"},
+			diff:     domain.DiffResult{Kind: domain.ChangeKindAdded, Path: "foo", After: "string"},
 			wantText: "foo",
 		},
 		{
-			diff:     types.DiffResult{Kind: types.ChangeKindRemoved, Path: "bar", Before: "number"},
+			diff:     domain.DiffResult{Kind: domain.ChangeKindRemoved, Path: "bar", Before: "number"},
 			wantText: "bar",
 		},
 		{
-			diff:     types.DiffResult{Kind: types.ChangeKindTypeChanged, Path: "baz", Before: "string", After: "number"},
+			diff:     domain.DiffResult{Kind: domain.ChangeKindTypeChanged, Path: "baz", Before: "string", After: "number"},
 			wantText: "string",
 		},
 		{
-			diff:     types.DiffResult{Kind: types.ChangeKindStatusChanged, Before: "200", After: "500"},
+			diff:     domain.DiffResult{Kind: domain.ChangeKindStatusChanged, Before: "200", After: "500"},
 			wantText: "200",
 		},
 	}
@@ -139,7 +139,7 @@ func TestTelegram_Notify_MessageFormats(t *testing.T) {
 		})
 
 		tg := notifier.NewTelegram(srv.URL, "123")
-		if err := tg.Notify("test", []types.DiffResult{tc.diff}); err != nil {
+		if err := tg.Notify("test", []domain.DiffResult{tc.diff}); err != nil {
 			t.Errorf("diff %v: unexpected error: %v", tc.diff.Kind, err)
 			srv.Close()
 			continue
