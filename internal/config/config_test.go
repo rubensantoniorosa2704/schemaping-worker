@@ -386,3 +386,36 @@ monitors:
 		t.Errorf("explicit retries: 0 should not be overridden, got %d", *m.Retries)
 	}
 }
+
+func TestLoad_RawDefaultsFalse(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Monitors[0].Raw {
+		t.Error("Raw should default to false")
+	}
+}
+
+func TestLoad_RawExplicitTrue(t *testing.T) {
+	path := writeTemp(t, `
+monitors:
+  - name: api
+    url: https://example.com
+    raw: true
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !cfg.Monitors[0].Raw {
+		t.Error("Raw should be true when explicitly set")
+	}
+}

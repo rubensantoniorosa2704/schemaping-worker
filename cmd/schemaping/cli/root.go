@@ -132,6 +132,7 @@ func Execute() {
 
 	globalNotifiers := buildNotifiers(cfg.Webhooks)
 	store := storage.New()
+	rawStore := storage.NewRawStore()
 
 	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
 	for _, m := range cfg.Monitors {
@@ -148,9 +149,9 @@ func Execute() {
 
 	switch cmd {
 	case "check":
-		runCheck(cfg, checkers, globalNotifiers, store)
+		runCheck(cfg, checkers, globalNotifiers, store, rawStore)
 	case "run":
-		runRun(cfg, checkers, globalNotifiers, store)
+		runRun(cfg, checkers, globalNotifiers, store, rawStore)
 	case "test-webhooks":
 		runTestWebhooks(globalNotifiers)
 	}
@@ -193,7 +194,7 @@ type checkResult struct {
 }
 
 // executeCheck runs a monitor check, persists the snapshot on success, and returns the result.
-func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, store domain.Store) checkResult {
+func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, store domain.Store, rawStore domain.RawStore) checkResult {
 	prefix := fmt.Sprintf("[%s]", m.Name)
 	if showTimestamp {
 		prefix = fmt.Sprintf("%s [%s]", time.Now().Format("15:04:05"), m.Name)
@@ -210,6 +211,13 @@ func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, stor
 	if snap.Error == "" {
 		if saveErr := store.Save(snap); saveErr != nil {
 			fmt.Fprintf(os.Stderr, "%s save error: %s\n", prefix, saveErr)
+		}
+
+		// Persist raw response body when raw mode is enabled for this monitor.
+		if m.Raw && len(snap.RawBody) > 0 {
+			if rawErr := rawStore.Save(m.Name, snap.CapturedAt, snap.RawBody); rawErr != nil {
+				fmt.Fprintf(os.Stderr, "%s raw save error: %s\n", prefix, rawErr)
+			}
 		}
 	}
 
@@ -260,8 +268,8 @@ func printResult(r checkResult) {
 }
 
 // executeAndPrint runs a check, prints the result, and fires webhooks if a change is detected.
-func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, store domain.Store) {
-	r := executeCheck(c, m, showTimestamp, store)
+func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, store domain.Store, rawStore domain.RawStore) {
+	r := executeCheck(c, m, showTimestamp, store, rawStore)
 	printResult(r)
 
 	if r.hasPrev && len(r.diffs) > 0 {

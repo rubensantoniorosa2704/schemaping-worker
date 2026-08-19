@@ -32,6 +32,10 @@ type Monitor struct {
 	// Zero value means "not configured" and config.Load will apply the default (2s).
 	// The actual wait before attempt n is: RetryBackoff * 2^(n-1), capped at 30s.
 	RetryBackoff time.Duration `yaml:"retry_backoff"`
+	// Raw enables saving the raw response body to disk after each successful check.
+	// Files are stored under ~/.schemaping/raw/<monitor-name>/ and overwritten on each interval.
+	// Defaults to false (opt-in).
+	Raw bool `yaml:"raw"`
 }
 
 // Snapshot represents a captured response from a monitor at a point in time.
@@ -44,6 +48,10 @@ type Snapshot struct {
 	// TransportErr holds the raw transport error (timeout, connection refused, etc.)
 	// used internally by the retry logic. Not persisted to disk.
 	TransportErr error `json:"-"`
+	// RawBody holds the raw response bytes as received from the network.
+	// Not persisted in the schema snapshot — used by the raw storage layer
+	// when the monitor has raw: true enabled.
+	RawBody []byte `json:"-"`
 }
 
 // ChangeKind describes the type of schema change detected.

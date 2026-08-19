@@ -63,6 +63,9 @@ func (f *Fetcher) Fetch(m domain.Monitor) domain.Snapshot {
 		snap.Error = fmt.Sprintf("unexpected status: got %d, want %d", resp.StatusCode, m.ExpectedStatus)
 	}
 
+	// Always keep raw bytes for the raw storage layer (used when monitor.Raw == true).
+	snap.RawBody = body
+
 	if len(body) > 0 {
 		if err := json.Unmarshal(body, &snap.Body); err != nil && snap.Error == "" {
 			snap.Error = fmt.Sprintf("parse body: %s", err)

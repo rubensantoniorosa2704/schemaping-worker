@@ -11,10 +11,10 @@ import (
 )
 
 // runRun starts SchemaPing in continuous mode, scheduling each monitor on its own interval.
-func runRun(cfg config.Config, checkers map[string]*checker.Checker, globalNotifiers []notifier.Notifier, store domain.Store) {
+func runRun(cfg config.Config, checkers map[string]*checker.Checker, globalNotifiers []notifier.Notifier, store domain.Store, rawStore domain.RawStore) {
 	fmt.Printf("%sSchemaPing v%s%s starting — %d monitor(s) loaded\n\n", colorBold, Version, colorReset, len(cfg.Monitors))
 	scheduler.Run(cfg.Monitors, func(m domain.Monitor) {
-		executeAndPrint(checkers[m.Name], m, true, resolveNotifiers(m, globalNotifiers, cfg), store)
+		executeAndPrint(checkers[m.Name], m, true, resolveNotifiers(m, globalNotifiers, cfg), store, rawStore)
 	})
 	fmt.Println("\nSchemaPing stopped.")
 }
