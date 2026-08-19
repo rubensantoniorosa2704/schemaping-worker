@@ -66,7 +66,9 @@ func (f *Fetcher) Fetch(m domain.Monitor) domain.Snapshot {
 	// Always keep raw bytes for the raw storage layer (used when monitor.Raw == true).
 	snap.RawBody = body
 
-	if len(body) > 0 {
+	// Only parse body as JSON for HTTP monitors. OpenAPI monitors use RawBody directly
+	// in their diff strategy (the spec may be YAML or JSON, parsed there).
+	if m.Type != domain.MonitorTypeOpenAPI && len(body) > 0 {
 		if err := json.Unmarshal(body, &snap.Body); err != nil && snap.Error == "" {
 			snap.Error = fmt.Sprintf("parse body: %s", err)
 		}

@@ -73,6 +73,32 @@ func TestRawStore_Save_OverwritesPreviousFile(t *testing.T) {
 	}
 }
 
+func TestRawStore_Save_YAMLExtension(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	store := NewRawStore()
+	ts := time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
+	data := []byte("openapi: 3.0.0\ninfo:\n  title: Test\n")
+
+	err := store.Save("my-spec", ts, data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedDir := filepath.Join(dir, ".schemaping", "raw", "my-spec")
+	entries, err := os.ReadDir(expectedDir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(entries))
+	}
+	if entries[0].Name() != "my-spec-2026-08-19T10-00-00Z.yaml" {
+		t.Errorf("expected .yaml extension, got: %s", entries[0].Name())
+	}
+}
+
 func TestRawStore_Save_SanitizesMonitorName(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

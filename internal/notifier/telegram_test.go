@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 )
 
 // startTelegramServer starts a fake Telegram Bot API server.

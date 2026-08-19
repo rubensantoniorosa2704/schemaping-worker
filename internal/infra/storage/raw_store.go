@@ -20,7 +20,7 @@ func NewRawStore() *RawStore {
 // Save writes the raw response body to disk, replacing any previous file for the monitor.
 // The filename includes the capture timestamp for identification:
 //
-//	<monitor-name>-2026-08-19T08-45-00Z.json
+//	<monitor-name>-2026-08-19T08-45-00Z.json (or .yaml based on content)
 func (s *RawStore) Save(monitorName string, capturedAt time.Time, data []byte) error {
 	dir, err := rawDir(monitorName)
 	if err != nil {
@@ -44,7 +44,8 @@ func (s *RawStore) Save(monitorName string, capturedAt time.Time, data []byte) e
 
 	ts := capturedAt.UTC().Format("2006-01-02T15-04-05Z")
 	safeName := unsafeChars.ReplaceAllString(monitorName, "_")
-	filename := fmt.Sprintf("%s-%s.json", safeName, ts)
+	ext := detectExtension(data)
+	filename := fmt.Sprintf("%s-%s%s", safeName, ts, ext)
 	path := filepath.Join(dir, filename)
 
 	if err := os.WriteFile(path, data, 0600); err != nil {
@@ -54,6 +55,21 @@ func (s *RawStore) Save(monitorName string, capturedAt time.Time, data []byte) e
 	return nil
 }
 
+// detectExtension returns ".json" if data looks like JSON, ".yaml" otherwise.
+func detectExtension(data []byte) string {
+	for _, b := range data {
+		switch b {
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '{', '[':
+			return ".json"
+		default:
+			return ".yaml"
+		}
+	}
+	return ".json"
+}
+
 func rawDir(monitorName string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -61,4 +77,33 @@ func rawDir(monitorName string) (string, error) {
 	}
 	safe := unsafeChars.ReplaceAllString(monitorName, "_")
 	return filepath.Join(home, ".schemaping", "raw", safe), nil
+}
+
+// Load reads the raw response body for the given monitor from disk.
+// Returns os.ErrNotExist if no raw file exists.
+func (s *RawStore) Load(monitorName string) ([]byte, error) {
+	dir, err := rawDir(monitorName)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, os.ErrNotExist
+		}
+		return nil, fmt.Errorf("raw: read dir: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("raw: read file: %w", err)
+			}
+			return data, nil
+		}
+	}
+
+	return nil, os.ErrNotExist
 }

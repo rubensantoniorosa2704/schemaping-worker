@@ -27,6 +27,9 @@ type RawStore interface {
 	// Save writes the raw response body for the given monitor, replacing any previous file.
 	// The capturedAt timestamp is embedded in the filename for identification.
 	Save(monitorName string, capturedAt time.Time, data []byte) error
+	// Load reads the raw response body for the given monitor.
+	// Returns os.ErrNotExist if no raw file has been saved yet.
+	Load(monitorName string) ([]byte, error)
 }
 
 // DiffStrategy is the port for comparing two snapshots and producing a list of changes.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 	"github.com/rubensantoniorosa2704/schemaping-worker/internal/domain"
+	"github.com/rubensantoniorosa2704/schemaping-worker/internal/notifier"
 )
 
 // startDiscordServer starts a fake Discord webhook server.

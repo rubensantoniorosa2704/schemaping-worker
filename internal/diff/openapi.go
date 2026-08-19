@@ -47,8 +47,8 @@ func (s OpenAPI) Diff(prev, curr domain.Snapshot) []domain.DiffResult {
 // --- internal OpenAPI types (minimal, no $ref resolution) ---
 
 type openAPISpec struct {
-	Info  openAPIInfo                      `yaml:"info" json:"info"`
-	Paths map[string]map[string]operation  `yaml:"paths" json:"paths"`
+	Info  openAPIInfo                     `yaml:"info" json:"info"`
+	Paths map[string]map[string]operation `yaml:"paths" json:"paths"`
 }
 
 type openAPIInfo struct {
@@ -63,15 +63,15 @@ type operation struct {
 }
 
 type parameter struct {
-	Name     string `yaml:"name" json:"name"`
-	In       string `yaml:"in" json:"in"`
-	Required bool   `yaml:"required" json:"required"`
+	Name     string     `yaml:"name" json:"name"`
+	In       string     `yaml:"in" json:"in"`
+	Required bool       `yaml:"required" json:"required"`
 	Schema   *schemaObj `yaml:"schema" json:"schema"`
 }
 
 type requestBody struct {
-	Required bool                   `yaml:"required" json:"required"`
-	Content  map[string]mediaType   `yaml:"content" json:"content"`
+	Required bool                 `yaml:"required" json:"required"`
+	Content  map[string]mediaType `yaml:"content" json:"content"`
 }
 
 type mediaType struct {

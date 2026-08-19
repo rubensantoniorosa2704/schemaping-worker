@@ -131,7 +131,8 @@ func Execute() {
 	}
 
 	globalNotifiers := buildNotifiers(cfg.Webhooks)
-	store := storage.New()
+	snapshotStore := storage.New()
+	specStore := storage.NewSpecStore()
 	rawStore := storage.NewRawStore()
 
 	checkers := make(map[string]*checker.Checker, len(cfg.Monitors))
@@ -147,11 +148,17 @@ func Execute() {
 		})
 	}
 
+	stores := &storeSet{
+		snapshot: snapshotStore,
+		spec:     specStore,
+		raw:      rawStore,
+	}
+
 	switch cmd {
 	case "check":
-		runCheck(cfg, checkers, globalNotifiers, store, rawStore)
+		runCheck(cfg, checkers, globalNotifiers, stores)
 	case "run":
-		runRun(cfg, checkers, globalNotifiers, store, rawStore)
+		runRun(cfg, checkers, globalNotifiers, stores)
 	case "test-webhooks":
 		runTestWebhooks(globalNotifiers)
 	}
@@ -194,6 +201,23 @@ func resolveDiffStrategy(m domain.Monitor) domain.DiffStrategy {
 	}
 }
 
+// storeSet groups the different store implementations used during checks.
+type storeSet struct {
+	snapshot domain.Store    // for HTTP monitors (JSON schema snapshots)
+	spec     domain.Store    // for OpenAPI monitors (raw spec bytes)
+	raw      domain.RawStore // opt-in raw response storage
+}
+
+// resolveStore returns the appropriate Store for the monitor's type.
+func (s *storeSet) resolveStore(m domain.Monitor) domain.Store {
+	switch m.Type {
+	case domain.MonitorTypeOpenAPI:
+		return s.spec
+	default:
+		return s.snapshot
+	}
+}
+
 // checkResult holds the outcome of a single monitor check.
 type checkResult struct {
 	prefix  string
@@ -204,13 +228,15 @@ type checkResult struct {
 }
 
 // executeCheck runs a monitor check, persists the snapshot on success, and returns the result.
-func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, store domain.Store, rawStore domain.RawStore) checkResult {
+func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, stores *storeSet) checkResult {
 	prefix := fmt.Sprintf("[%s]", m.Name)
 	if showTimestamp {
 		prefix = fmt.Sprintf("%s [%s]", time.Now().Format("15:04:05"), m.Name)
 	}
 
 	snap := c.Run()
+
+	store := stores.resolveStore(m)
 
 	prev, err := store.Load(m.Name)
 	hasPrev := err == nil
@@ -225,7 +251,7 @@ func executeCheck(c *checker.Checker, m domain.Monitor, showTimestamp bool, stor
 
 		// Persist raw response body when raw mode is enabled for this monitor.
 		if m.Raw && len(snap.RawBody) > 0 {
-			if rawErr := rawStore.Save(m.Name, snap.CapturedAt, snap.RawBody); rawErr != nil {
+			if rawErr := stores.raw.Save(m.Name, snap.CapturedAt, snap.RawBody); rawErr != nil {
 				fmt.Fprintf(os.Stderr, "%s raw save error: %s\n", prefix, rawErr)
 			}
 		}
@@ -278,8 +304,8 @@ func printResult(r checkResult) {
 }
 
 // executeAndPrint runs a check, prints the result, and fires webhooks if a change is detected.
-func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, store domain.Store, rawStore domain.RawStore) {
-	r := executeCheck(c, m, showTimestamp, store, rawStore)
+func executeAndPrint(c *checker.Checker, m domain.Monitor, showTimestamp bool, notifiers []notifier.Notifier, stores *storeSet) {
+	r := executeCheck(c, m, showTimestamp, stores)
 	printResult(r)
 
 	if r.hasPrev && len(r.diffs) > 0 {
